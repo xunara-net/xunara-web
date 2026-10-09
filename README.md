@@ -86,6 +86,12 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 
 ## 部署
 
+启动时无法读取登录状态或返回格式不完整时，控制台显示「暂时无法确认登录」
+和重试入口，不把故障当成匿名、不丢失当前页面地址，也不挂载受保护的账户功能。
+恢复后重新读取持久会话；真正未登录或服务端已确认失效时才跳转登录页。
+隔离浏览器回归与运行方法见
+[超管集成验收](https://github.com/xunara-net/xunara-admin/blob/main/README.md#浏览器集成验收)。
+
 推荐由 `xunara-deploy` 的 nginx 托管 `dist/`，并把 `/api`、`/key`、`/ts2021`、
 `/derp`、`/health` 反向代理到 `xunara-server`，保证同源（会话 Cookie 与 CSRF
 模型依赖同源）。

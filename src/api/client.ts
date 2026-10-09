@@ -80,6 +80,7 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  AUTH_UNAVAILABLE: "登录服务暂时不可用，当前会话未被退出，请稍后重试",
   DEVICE_LIMIT_REACHED: "当前套餐的设备数已达上限，升级套餐后可继续添加设备",
   AUTH_KEY_LIMIT_REACHED: "预授权密钥数量已达上限，请删除不再使用的密钥或升级套餐",
   USER_LIMIT_REACHED: "成员数量已达上限，请升级套餐",

@@ -112,4 +112,49 @@ describe("account session state", () => {
     expect(session.state.session?.authMethod).toBe("passkey");
     expect(session.state.tenant?.id).toBe("alice");
   });
+
+  it("启动读取失败不会把已登录快照改成匿名", async () => {
+    await signedIn();
+    fetchMock.mockRejectedValueOnce(new TypeError("network unavailable"));
+    await session.load();
+    expect(session.state.booted).toBe(true);
+    expect(session.state.bootError).toBe("network unavailable");
+    expect(session.state.authenticated).toBe(true);
+    expect(session.state.session?.id).toBe("current");
+  });
+
+  it("认证存储故障显示错误，恢复后清除错误并读取实际会话", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "AUTH_UNAVAILABLE: retry" }), { status: 503 }));
+    await session.load();
+    expect(session.state.bootError).toContain("登录服务暂时不可用");
+    respond({ authenticated: true, user, session: { id: "restored", auth_method: "local" } });
+    await session.load();
+    expect(session.state.bootError).toBe("");
+    expect(session.state.session?.id).toBe("restored");
+  });
+
+  it("格式损坏的成功响应不能被当成匿名", async () => {
+    await signedIn();
+    respond({});
+    await session.load();
+    expect(session.state.bootError).toContain("响应格式无效");
+    expect(session.state.authenticated).toBe(true);
+  });
+
+  it("只有已确认的匿名快照才清理旧身份", async () => {
+    await signedIn();
+    respond({ authenticated: false });
+    await session.load();
+    expect(session.state.bootError).toBe("");
+    expect(session.state.authenticated).toBe(false);
+    expect(session.state.user).toBeNull();
+  });
+
+  it("退出时的认证读取故障保留当前登录", async () => {
+    await signedIn();
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "AUTH_UNAVAILABLE: retry" }), { status: 503 }));
+    await expect(session.logout()).rejects.toMatchObject({ status: 503 });
+    expect(session.state.authenticated).toBe(true);
+    expect(session.state.session?.id).toBe("current");
+  });
 });

@@ -3,7 +3,7 @@
 
 import { reactive, readonly } from "vue";
 import * as endpoints from "./api/endpoints";
-import { ApiError } from "./api/client";
+import { ApiError, errorMessage } from "./api/client";
 import type { AccountInfo, PasskeyCredentialJSON, Plan, ProfileUpdate, SessionInfo, Snapshot, User } from "./api/types";
 
 export interface Toast {
@@ -14,6 +14,7 @@ export interface Toast {
 
 const state = reactive({
   booted: false,
+  bootError: "",
   authenticated: false,
   setupRequired: false,
   localLogin: true,
@@ -34,8 +35,9 @@ export const session = {
     try {
       const snapshot = await endpoints.getSession();
       apply(snapshot);
-    } catch {
-      apply({ authenticated: false });
+    } catch (err) {
+      // 身份暂时无法确认不等于匿名；保留快照，但由全局故障页阻止账户功能挂载。
+      state.bootError = errorMessage(err);
     } finally {
       state.booted = true;
     }
@@ -112,6 +114,7 @@ export const session = {
 };
 
 function apply(snapshot: Snapshot): void {
+  state.bootError = "";
   state.authenticated = snapshot.authenticated;
   state.setupRequired = snapshot.setupRequired ?? false;
   state.localLogin = snapshot.localLogin ?? true;

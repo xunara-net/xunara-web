@@ -51,6 +51,8 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   if (!session.state.booted) await session.load();
+  // 认证故障由 App 的重试页接管，保留原目标地址，不误重定向到登录页。
+  if (session.state.bootError) return true;
   if (to.meta.public) return true;
   if (!session.state.authenticated) {
     return { name: "login", query: { return_to: to.fullPath } };

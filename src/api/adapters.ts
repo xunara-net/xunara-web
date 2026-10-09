@@ -79,6 +79,9 @@ export function toPlan(payload: PlanPayload): Plan {
 }
 
 export function toSnapshot(payload: SnapshotPayload): Snapshot {
+  if (typeof payload?.authenticated !== "boolean") {
+    throw new Error("登录状态响应格式无效，请稍后重试或联系管理员。");
+  }
   return {
     authenticated: payload.authenticated,
     setupRequired: payload.setup_required,
