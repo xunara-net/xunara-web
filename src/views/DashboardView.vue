@@ -53,6 +53,21 @@ onMounted(load);
 function auditTime(event: AuditEvent): string {
   return formatTime(event.at ?? event.time);
 }
+
+// The console is served by the control plane itself, so its own origin is the
+// login server a client needs. Nobody should have to derive that.
+const loginServer = computed(() => window.location.origin);
+const loginCommand = computed(() => `sudo tailscale up --login-server ${loginServer.value}`);
+const showOnboarding = computed(() => !loading.value && machines.value.length === 0);
+
+async function copy(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    session.toast("success", `${label}已复制`);
+  } catch {
+    session.toast("error", "浏览器拒绝了剪贴板访问，请手动复制");
+  }
+}
 </script>
 
 <template>
@@ -74,6 +89,39 @@ function auditTime(event: AuditEvent): string {
       :tone="usedPercent !== null && usedPercent >= 90 ? 'warning' : 'default'"
       :sub="plan ? plan.name : '未启用套餐'"
     />
+  </div>
+
+  <div class="card" v-if="showOnboarding">
+    <div class="card-head">
+      <h2>接入第一台设备</h2>
+      <span class="hint">三步把设备接进这个网络</span>
+    </div>
+    <div class="card-body">
+      <ol style="margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 13px; line-height: 1.9">
+        <li>
+          安装官方 Tailscale 客户端（
+          <a href="https://tailscale.com/download" target="_blank" rel="noreferrer">下载页</a>
+          ；Linux 可用 <code>curl -fsSL https://tailscale.com/install.sh | sh</code>）。
+        </li>
+        <li>用你的服务器地址登录（桌面端与服务器端）：</li>
+      </ol>
+      <div class="snippet">
+        <code>{{ loginCommand }}</code>
+        <button class="btn small" @click="copy(loginCommand, '登录命令')">复制</button>
+      </div>
+      <div class="snippet">
+        <code>{{ loginServer }}</code>
+        <button class="btn small" @click="copy(loginServer, '服务器地址')">复制</button>
+      </div>
+      <ol start="3" style="margin: 10px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 13px; line-height: 1.9">
+        <li>
+          设备首次连接后会出现在
+          <router-link to="/devices">设备</router-link>
+          页的「待审批」里，批准后即可访问网络；需要免交互批量接入时用
+          <router-link to="/api">预授权密钥</router-link>。
+        </li>
+      </ol>
+    </div>
   </div>
 
   <div class="card" v-if="plan">

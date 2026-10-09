@@ -88,6 +88,31 @@ code, .mono {
   font-size: 12.5px;
 }
 
+/* ---- onboarding snippet -------------------------------------------------- */
+
+/* A copyable line of shell: the console's own origin is the login server, so
+ * a new owner copies it into `tailscale up` instead of transcribing it. */
+.snippet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.snippet code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.snippet .btn { flex: none; }
+
 /* ---- layout ------------------------------------------------------------- */
 
 .shell { display: flex; min-height: 100%; }
