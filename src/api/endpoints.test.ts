@@ -67,6 +67,41 @@ function respond(body: unknown) {
 }
 
 describe("control plane response contracts", () => {
+  it("loads account metadata without assuming every identity has a password", async () => {
+    respond({ user: ownerSession.user, password_change_enabled: false, csrf_token: "session-csrf" });
+    expect(await endpoints.getAccount()).toMatchObject({
+      user: { id: 1, loginName: "alice", displayName: "我的网络", role: "owner" },
+      passwordChangeEnabled: false,
+      csrfToken: "session-csrf",
+    });
+  });
+
+  it("updates only the self-service profile with a CSRF header", async () => {
+    respond({ user: { ...ownerSession.user, display_name: "新昵称" }, password_change_enabled: true, csrf_token: "session-csrf" });
+    expect((await endpoints.updateAccount({ display_name: "新昵称", email: "" }, "session-csrf")).user.displayName).toBe("新昵称");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://alice.example.test/api/v1/account");
+    expect(init?.method).toBe("PATCH");
+    expect(init?.headers).toMatchObject({ "X-CSRF-Token": "session-csrf", "Content-Type": "application/json" });
+    expect(JSON.parse(String(init?.body))).toEqual({ display_name: "新昵称", email: "" });
+  });
+
+  it("sends passwords only in the JSON body and preserves revocation counts", async () => {
+    respond({ changed: true, revoked_sessions: 3 });
+    expect(await endpoints.changePassword({ current_password: "old test password", new_password: "new test password" }, "session-csrf")).toEqual({ changed: true, revoked_sessions: 3 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://alice.example.test/api/v1/account/password");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toMatchObject({ "X-CSRF-Token": "session-csrf" });
+    expect(JSON.parse(String(init?.body))).toEqual({ current_password: "old test password", new_password: "new test password" });
+  });
+
+  it("keeps a wrong current-password error distinct from an expired session", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "CURRENT_PASSWORD_INVALID: current password is incorrect" }), { status: 400 }));
+    await expect(endpoints.changePassword({ current_password: "wrong test password", new_password: "new test password" }, "session-csrf"))
+      .rejects.toMatchObject({ status: 400, errorCode: "CURRENT_PASSWORD_INVALID" });
+  });
+
   it("loads an owner session with usable account, quota and tenant fields", async () => {
     respond(ownerSession);
     const snapshot = await endpoints.getSession();

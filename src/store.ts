@@ -5,7 +5,7 @@
 
 import { reactive, readonly } from "vue";
 import * as endpoints from "./api/endpoints";
-import type { Plan, SessionInfo, Snapshot, User } from "./api/types";
+import type { AccountInfo, Plan, ProfileUpdate, SessionInfo, Snapshot, User } from "./api/types";
 
 export interface Toast {
   id: number;
@@ -44,6 +44,19 @@ export const session = {
 
   async login(login: string, password: string): Promise<void> {
     apply(await endpoints.login(login, password));
+  },
+
+  async updateProfile(body: ProfileUpdate, csrfToken: string): Promise<AccountInfo> {
+    const account = await endpoints.updateAccount(body, csrfToken);
+    if (!state.authenticated || state.user?.id !== account.user.id) {
+      throw new Error("当前会话已变更，请刷新页面后重试");
+    }
+    state.user = account.user;
+    return account;
+  },
+
+  forget(): void {
+    apply({ authenticated: false });
   },
 
   async signup(body: {

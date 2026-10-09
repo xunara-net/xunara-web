@@ -18,6 +18,11 @@ describe("ApiError", () => {
 });
 
 describe("errorMessage", () => {
+  it("translates a wrong current password and rate limit without exposing passwords", () => {
+    expect(errorMessage(new ApiError(400, "CURRENT_PASSWORD_INVALID: current password is incorrect"))).toContain("当前密码不正确");
+    expect(errorMessage(new ApiError(429, "PASSWORD_RATE_LIMITED: too many attempts"))).toContain("请稍后再试");
+  });
+
   it("translates known plan codes for the console", () => {
     const err = new ApiError(403, "DEVICE_LIMIT_REACHED: this plan's device limit is reached");
     expect(errorMessage(err)).toContain("设备数已达上限");

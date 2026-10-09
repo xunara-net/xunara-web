@@ -2,8 +2,9 @@
 // stay free of URL strings, which keeps the API version in one place.
 
 import { api } from "./client";
-import { toAuditEvent, toPlan, toSession, toSnapshot } from "./adapters";
+import { toAccount, toAuditEvent, toPlan, toSession, toSnapshot } from "./adapters";
 import type {
+  AccountPayload,
   ApiKey,
   ProvidersPayload,
   TenantSignupResult,
@@ -16,7 +17,10 @@ import type {
   Organization,
   Overview,
   PendingDevice,
+  PasswordChange,
+  PasswordChangeResult,
   PlanPayload,
+  ProfileUpdate,
   RelayInfo,
   Route,
   SessionInfo,
@@ -119,6 +123,18 @@ export const listRelays = async (): Promise<RelayInfo[]> =>
 export const listExitNodes = () => api<{ exitNodes?: unknown[] }>("/api/v2/exit-nodes");
 
 // ---- account --------------------------------------------------------------
+
+export const getAccount = async () => toAccount(await api<AccountPayload>("/api/v1/account"));
+
+export const updateAccount = async (body: ProfileUpdate, csrfToken: string) =>
+  toAccount(await api<AccountPayload>("/api/v1/account", {
+    method: "PATCH", body, headers: { "X-CSRF-Token": csrfToken },
+  }));
+
+export const changePassword = (body: PasswordChange, csrfToken: string) =>
+  api<PasswordChangeResult>("/api/v1/account/password", {
+    method: "POST", body, headers: { "X-CSRF-Token": csrfToken },
+  });
 
 export const listUsers = async (): Promise<User[]> =>
   (await api<{ users: User[] | null }>("/api/v1/users")).users ?? [];

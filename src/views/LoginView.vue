@@ -54,6 +54,7 @@ async function submit() {
         </div>
       </div>
 
+      <div v-if="route.query.password_changed === '1'" class="alert success" role="status" style="margin-top: 18px">密码已修改，所有旧登录已退出。请使用新密码重新登录。</div>
       <div v-if="error" class="alert error" style="margin-top: 18px">{{ error }}</div>
 
       <form style="margin-top: 20px" @submit.prevent="submit">

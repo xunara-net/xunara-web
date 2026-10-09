@@ -1,4 +1,6 @@
 import type {
+  AccountInfo,
+  AccountPayload,
   AuditEvent,
   AuditPayload,
   Plan,
@@ -7,7 +9,29 @@ import type {
   SessionPayload,
   Snapshot,
   SnapshotPayload,
+  User,
+  UserPayload,
 } from "./types";
+
+export function toUser(payload: UserPayload): User {
+  return {
+    id: payload.id,
+    loginName: payload.login_name,
+    displayName: payload.display_name,
+    email: payload.email,
+    role: payload.role,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+export function toAccount(payload: AccountPayload): AccountInfo {
+  return {
+    user: toUser(payload.user),
+    passwordChangeEnabled: payload.password_change_enabled,
+    csrfToken: payload.csrf_token,
+  };
+}
 
 export function toPlan(payload: PlanPayload): Plan {
   return {
@@ -43,15 +67,7 @@ export function toSnapshot(payload: SnapshotPayload): Snapshot {
     localLogin: payload.local_login,
     registration: payload.registration,
     capabilities: payload.capabilities,
-    user: payload.user && {
-      id: payload.user.id,
-      loginName: payload.user.login_name,
-      displayName: payload.user.display_name,
-      email: payload.user.email,
-      role: payload.user.role,
-      createdAt: payload.user.created_at,
-      updatedAt: payload.user.updated_at,
-    },
+    user: payload.user && toUser(payload.user),
     session: payload.session && {
       id: payload.session.id,
       authMethod: payload.session.auth_method,

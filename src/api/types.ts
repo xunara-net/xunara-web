@@ -18,6 +18,43 @@ export interface SessionInfo {
   revokedReason?: string;
 }
 
+export interface UserPayload {
+  id: number;
+  login_name: string;
+  display_name: string;
+  email: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountInfo {
+  user: User;
+  passwordChangeEnabled: boolean;
+  csrfToken: string;
+}
+
+export interface AccountPayload {
+  user: UserPayload;
+  password_change_enabled: boolean;
+  csrf_token: string;
+}
+
+export interface ProfileUpdate {
+  display_name?: string;
+  email?: string;
+}
+
+export interface PasswordChange {
+  current_password: string;
+  new_password: string;
+}
+
+export interface PasswordChangeResult {
+  changed: boolean;
+  revoked_sessions: number;
+}
+
 export interface Plan {
   id: string;
   name: string;
@@ -86,15 +123,7 @@ export interface SnapshotPayload {
   local_login?: boolean;
   registration?: string;
   capabilities?: string[];
-  user?: {
-    id: number;
-    login_name: string;
-    display_name: string;
-    email: string;
-    role: string;
-    created_at: string;
-    updated_at: string;
-  };
+  user?: UserPayload;
   session?: {
     id: string;
     auth_method: string;

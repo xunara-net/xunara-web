@@ -51,7 +51,9 @@ async function revoke(item: SessionInfo) {
 </script>
 
 <template>
-  <PageHeader title="安全中心" desc="登录会话、密钥有效期与安全状态。" />
+  <PageHeader title="安全中心" desc="登录会话、密钥有效期与安全状态。">
+    <template #actions><RouterLink class="btn" to="/settings">修改密码</RouterLink></template>
+  </PageHeader>
 
   <div v-if="error" class="alert error" style="margin-bottom: 16px">{{ error }}</div>
 
