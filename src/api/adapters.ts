@@ -1,6 +1,8 @@
 import type {
   AccountInfo,
   AccountPayload,
+  AccountSessions,
+  AccountSessionsPayload,
   AuditEvent,
   AuditPayload,
   Plan,
@@ -12,6 +14,23 @@ import type {
   User,
   UserPayload,
 } from "./types";
+
+export function toAccountSessions(payload: AccountSessionsPayload): AccountSessions {
+  return {
+    currentSessionId: payload.current_session_id,
+    csrfToken: payload.csrf_token,
+    generatedAt: payload.generated_at,
+    sessions: payload.sessions.map((item) => ({
+      id: item.id,
+      authMethod: item.auth_method,
+      createdAt: item.created_at,
+      expiresAt: item.expires_at,
+      status: item.status,
+      revokedAt: item.revoked_at,
+      revokedReason: item.revoked_reason,
+    })),
+  };
+}
 
 export function toUser(payload: UserPayload): User {
   return {

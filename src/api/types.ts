@@ -18,6 +18,55 @@ export interface SessionInfo {
   revokedReason?: string;
 }
 
+export interface AccountSession extends SessionInfo {
+  status: "active" | "expired" | "revoked";
+}
+
+export interface AccountSessions {
+  sessions: AccountSession[];
+  currentSessionId: string;
+  csrfToken: string;
+  generatedAt: string;
+}
+
+export interface AccountSessionsPayload {
+  sessions: {
+    id: string;
+    auth_method: string;
+    created_at: string;
+    expires_at: string;
+    status: AccountSession["status"];
+    revoked_at?: string;
+    revoked_reason?: string;
+  }[];
+  current_session_id: string;
+  csrf_token: string;
+  generated_at: string;
+}
+
+export interface SessionRevocationResult {
+  revoked_sessions: number;
+  current_revoked: boolean;
+}
+
+export interface SecurityFinding {
+  id: string;
+  severity: string;
+  title: string;
+  detail: string;
+}
+
+export interface SecuritySnapshot {
+  generatedAt: string;
+  policy: { configured: boolean; ruleCount: number; loadError?: string };
+  tailnetLock: { enabled: boolean };
+  nodes: { total: number; expired: number; expiringSoon: number };
+  devices: { pending: number };
+  apiKeys: { live: number; neverExpires: number };
+  derp: { mapConfigured: boolean; regionsServed: number };
+  findings: SecurityFinding[] | null;
+}
+
 export interface UserPayload {
   id: number;
   login_name: string;

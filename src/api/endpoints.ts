@@ -2,9 +2,10 @@
 // stay free of URL strings, which keeps the API version in one place.
 
 import { api } from "./client";
-import { toAccount, toAuditEvent, toPlan, toSession, toSnapshot } from "./adapters";
+import { toAccount, toAccountSessions, toAuditEvent, toPlan, toSession, toSnapshot } from "./adapters";
 import type {
   AccountPayload,
+  AccountSessionsPayload,
   ApiKey,
   ProvidersPayload,
   TenantSignupResult,
@@ -25,6 +26,8 @@ import type {
   Route,
   SessionInfo,
   SessionPayload,
+  SessionRevocationResult,
+  SecuritySnapshot,
   SnapshotPayload,
   User,
 } from "./types";
@@ -136,6 +139,19 @@ export const changePassword = (body: PasswordChange, csrfToken: string) =>
     method: "POST", body, headers: { "X-CSRF-Token": csrfToken },
   });
 
+export const getAccountSessions = async () =>
+  toAccountSessions(await api<AccountSessionsPayload>("/api/v1/account/sessions"));
+
+export const revokeAccountSessions = (mode: "others" | "all", csrfToken: string) =>
+  api<SessionRevocationResult>("/api/v1/account/sessions/revoke", {
+    method: "POST", body: { mode }, headers: { "X-CSRF-Token": csrfToken },
+  });
+
+export const revokeAccountSession = (id: string, csrfToken: string) =>
+  api<SessionRevocationResult>(`/api/v1/account/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: { "X-CSRF-Token": csrfToken },
+  });
+
 export const listUsers = async (): Promise<User[]> =>
   (await api<{ users: User[] | null }>("/api/v1/users")).users ?? [];
 
@@ -176,4 +192,4 @@ export const listAudit = async (limit = 100): Promise<AuditEvent[]> =>
     (await api<{ events: AuditPayload[] | null }>("/api/v1/audit", { query: { limit } })).events ?? []
   ).map(toAuditEvent);
 
-export const getSecurity = () => api<Record<string, unknown>>("/api/v2/security");
+export const getSecurity = () => api<SecuritySnapshot>("/api/v2/security");

@@ -67,6 +67,43 @@ function respond(body: unknown) {
 }
 
 describe("control plane response contracts", () => {
+  it("loads account sessions using server statuses, a current ID and a CSRF token", async () => {
+    respond({
+      current_session_id: "current", csrf_token: "session-csrf", generated_at: "2026-10-09T01:00:00Z",
+      sessions: [{ id: "current", auth_method: "local", created_at: "2026-10-09T00:00:00Z", expires_at: "2026-10-10T00:00:00Z", status: "active" },
+        { id: "old", auth_method: "passkey", created_at: "2026-10-08T00:00:00Z", expires_at: "2026-10-09T00:00:00Z", status: "revoked", revoked_at: "2026-10-08T01:00:00Z", revoked_reason: "logout" }],
+    });
+    expect(await endpoints.getAccountSessions()).toMatchObject({
+      currentSessionId: "current", csrfToken: "session-csrf", generatedAt: "2026-10-09T01:00:00Z",
+      sessions: [{ id: "current", authMethod: "local", status: "active" }, { id: "old", status: "revoked", revokedReason: "logout" }],
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://alice.example.test/api/v1/account/sessions");
+  });
+
+  it.each(["others", "all"] as const)("revokes %s only through the human account API and CSRF header", async (mode) => {
+    respond({ revoked_sessions: 2, current_revoked: mode === "all" });
+    expect(await endpoints.revokeAccountSessions(mode, "session-csrf")).toEqual({ revoked_sessions: 2, current_revoked: mode === "all" });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://alice.example.test/api/v1/account/sessions/revoke");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toMatchObject({ "X-CSRF-Token": "session-csrf" });
+    expect(JSON.parse(String(init?.body))).toEqual({ mode });
+  });
+
+  it("escapes a public session ID and sends no token in its deletion URL", async () => {
+    respond({ revoked_sessions: 1, current_revoked: true });
+    expect(await endpoints.revokeAccountSession("public/id", "session-csrf")).toMatchObject({ current_revoked: true });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://alice.example.test/api/v1/account/sessions/public%2Fid");
+    expect(init?.method).toBe("DELETE");
+    expect(init?.headers).toMatchObject({ "X-CSRF-Token": "session-csrf" });
+  });
+
+  it("reports failed session reads rather than presenting an empty successful listing", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "SESSION_LIST_FAILED: cannot read" }), { status: 500 }));
+    await expect(endpoints.getAccountSessions()).rejects.toMatchObject({ status: 500, errorCode: "SESSION_LIST_FAILED" });
+  });
+
   it("loads account metadata without assuming every identity has a password", async () => {
     respond({ user: ownerSession.user, password_change_enabled: false, csrf_token: "session-csrf" });
     expect(await endpoints.getAccount()).toMatchObject({
