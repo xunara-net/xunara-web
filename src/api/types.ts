@@ -1,7 +1,3 @@
-// Wire types of the Xunara Core API. They mirror the server's JSON; every
-// field the console actually renders is typed, and unknown fields are simply
-// ignored (the server may add fields at any time).
-
 export interface User {
   id: number;
   loginName: string;
@@ -57,6 +53,76 @@ export interface Snapshot {
   session?: SessionInfo;
   tenant?: { id: string; organizationId?: string; organizationName?: string };
   plan?: Plan;
+}
+
+export interface PlanPayload {
+  id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  billing_cycle: string;
+  unlimited: boolean;
+  max_devices: number;
+  max_users: number;
+  max_routes: number;
+  max_auth_keys: number;
+  devices_used: number;
+  allow_custom_cidr: boolean;
+  allow_exit_node: boolean;
+  allow_subnet_router: boolean;
+  allow_api: boolean;
+  allow_acl: boolean;
+  allow_grants: boolean;
+  allow_custom_dns: boolean;
+  allow_audit_log: boolean;
+  allow_multi_member: boolean;
+  network_prefix?: string;
+  network_ranges?: string[];
+}
+
+export interface SnapshotPayload {
+  authenticated: boolean;
+  setup_required?: boolean;
+  local_login?: boolean;
+  registration?: string;
+  capabilities?: string[];
+  user?: {
+    id: number;
+    login_name: string;
+    display_name: string;
+    email: string;
+    role: string;
+    created_at: string;
+    updated_at: string;
+  };
+  session?: {
+    id: string;
+    auth_method: string;
+    created_at: string;
+    expires_at: string;
+    last_seen_at?: string;
+  };
+  tenant?: { id: string; organization_id?: string; organization_name?: string };
+  plan?: PlanPayload;
+}
+
+export interface SessionPayload {
+  ID: string;
+  AuthMethod: string;
+  CreatedAt: string;
+  ExpiresAt: string;
+  LastSeenAt: string;
+  RevokedAt: string;
+  RevokedReason: string;
+}
+
+export interface AuditPayload {
+  ID: number;
+  Time: string;
+  Actor: string;
+  Action: string;
+  Target: string;
+  Detail: string;
 }
 
 export interface Machine {

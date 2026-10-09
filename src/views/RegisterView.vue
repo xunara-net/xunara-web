@@ -30,15 +30,22 @@ const busy = ref(false);
 const error = ref("");
 const created = ref<TenantSignupResult | null>(null);
 
-const registration = computed(() => info.value?.registration ?? "invite");
+const registration = computed(() => info.value?.registration ?? "closed");
 const selfService = computed(() => info.value?.self_service ?? null);
 /** open + a sign-up desk means a whole tenant is created, not a member. */
 const createsTenant = computed(() => registration.value === "open" && selfService.value !== null);
 const canRegister = computed(() => registration.value === "invite" || registration.value === "open");
 
-onMounted(async () => {
+onMounted(() => {
   const fromQuery = route.query.invite;
   if (typeof fromQuery === "string") invite.value = fromQuery;
+  void load();
+});
+
+async function load() {
+  loading.value = true;
+  loadError.value = "";
+  info.value = null;
   try {
     info.value = await ep.getProviders();
   } catch (err) {
@@ -46,15 +53,17 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
 
 function valid(): boolean {
+  if (loading.value || loadError.value || !canRegister.value || !info.value?.local_login || info.value.setup_required || created.value) return false;
   if (!login.value.trim() || !password.value) return false;
   if (registration.value === "invite" && !invite.value.trim()) return false;
   return true;
 }
 
 async function submit() {
+  if (busy.value || !valid()) return;
   error.value = "";
   busy.value = true;
   try {
@@ -66,6 +75,7 @@ async function submit() {
         email: email.value.trim(),
         password: password.value,
       });
+      password.value = "";
       // A shared parent-domain cookie means the browser is already signed in
       // on the tenant host; otherwise the tenant host asks once for the
       // password that was just set.
@@ -111,6 +121,9 @@ async function submit() {
 
       <div v-if="loadError" class="alert error" style="margin-top: 18px">{{ loadError }}</div>
 
+      <div v-if="loading" class="help" style="margin-top: 18px">正在确认注册方式…</div>
+      <button v-else-if="loadError" class="btn" style="margin-top: 12px" @click="load">重新加载</button>
+
       <!-- Tenant created: the success state replaces the form so a refresh or
            a second submit cannot create a duplicate tenant. -->
       <template v-if="created">
@@ -130,14 +143,14 @@ async function submit() {
       </template>
 
       <!-- Registration disabled by the deployment. -->
-      <template v-else-if="!loading && !canRegister">
+      <template v-else-if="!loading && !loadError && (!canRegister || !info?.local_login || info.setup_required)">
         <div class="alert info" style="margin-top: 18px">
-          本部署未开放自助注册。请使用管理员发放的账号登录，或联系管理员获取邀请码。
+          {{ info?.setup_required ? "服务尚未初始化，请等待管理员完成配置。" : "本部署未开放自助注册，请联系管理员获取账号。" }}
         </div>
         <a class="btn" style="width: 100%; height: 36px; margin-top: 12px" href="/login">返回登录</a>
       </template>
 
-      <template v-else>
+      <template v-else-if="!loading && !loadError">
         <div v-if="error" class="alert error" style="margin-top: 18px">{{ error }}</div>
 
         <form style="margin-top: 20px" @submit.prevent="submit">

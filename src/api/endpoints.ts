@@ -2,11 +2,13 @@
 // stay free of URL strings, which keeps the API version in one place.
 
 import { api } from "./client";
+import { toAuditEvent, toPlan, toSession, toSnapshot } from "./adapters";
 import type {
   ApiKey,
   ProvidersPayload,
   TenantSignupResult,
   AuditEvent,
+  AuditPayload,
   AuthKey,
   DERPInfo,
   DNSRecord,
@@ -14,17 +16,18 @@ import type {
   Organization,
   Overview,
   PendingDevice,
-  Plan,
+  PlanPayload,
   RelayInfo,
   Route,
   SessionInfo,
-  Snapshot,
+  SessionPayload,
+  SnapshotPayload,
   User,
 } from "./types";
 
 // ---- authentication -------------------------------------------------------
 
-export const getSession = () => api<Snapshot>("/api/v1/auth/session");
+export const getSession = async () => toSnapshot(await api<SnapshotPayload>("/api/v1/auth/session"));
 
 export const getProviders = () => api<ProvidersPayload>("/api/v1/auth/providers");
 
@@ -44,23 +47,23 @@ export const signupTenant = (
   },
 ) => api<TenantSignupResult>(endpoint, { method: "POST", body });
 
-export const login = (login: string, password: string) =>
-  api<Snapshot>("/api/v1/auth/login", { method: "POST", body: { login, password } });
+export const login = async (login: string, password: string) =>
+  toSnapshot(await api<SnapshotPayload>("/api/v1/auth/login", { method: "POST", body: { login, password } }));
 
-export const signup = (body: {
+export const signup = async (body: {
   invite: string;
   login: string;
   display_name: string;
   email: string;
   password: string;
-}) => api<Snapshot>("/api/v1/auth/signup", { method: "POST", body });
+}) => toSnapshot(await api<SnapshotPayload>("/api/v1/auth/signup", { method: "POST", body }));
 
 export const logout = () => api<void>("/api/v1/auth/logout", { method: "POST", body: {} });
 
 // ---- tenant overview ------------------------------------------------------
 
 export const getOverview = () => api<Overview>("/api/v1/overview");
-export const getPlan = () => api<Plan>("/api/v1/plan");
+export const getPlan = async () => toPlan(await api<PlanPayload>("/api/v1/plan"));
 export const getOrganization = () => api<Organization>("/api/v2/organization");
 
 // ---- devices --------------------------------------------------------------
@@ -126,7 +129,7 @@ export const updateUser = (
 ) => api<User>(`/api/v1/users/${id}`, { method: "PATCH", body });
 
 export const listSessions = async (): Promise<SessionInfo[]> =>
-  (await api<{ sessions: SessionInfo[] | null }>("/api/v1/sessions")).sessions ?? [];
+  ((await api<{ sessions: SessionPayload[] | null }>("/api/v1/sessions")).sessions ?? []).map(toSession);
 
 export const revokeSession = (id: string) =>
   api<void>(`/api/v1/sessions/${id}`, { method: "DELETE" });
@@ -154,7 +157,7 @@ export const revokeAPIKey = (id: string) => api<void>(`/api/v1/api-keys/${id}`, 
 
 export const listAudit = async (limit = 100): Promise<AuditEvent[]> =>
   (
-    await api<{ events: AuditEvent[] | null }>("/api/v1/audit", { query: { limit } })
-  ).events ?? [];
+    (await api<{ events: AuditPayload[] | null }>("/api/v1/audit", { query: { limit } })).events ?? []
+  ).map(toAuditEvent);
 
 export const getSecurity = () => api<Record<string, unknown>>("/api/v2/security");

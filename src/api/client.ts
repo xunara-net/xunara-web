@@ -85,6 +85,7 @@ const codeMessages: Record<string, string> = {
   ROUTE_LIMIT_REACHED: "路由数量已达上限，请撤销不用的路由或升级套餐",
   PLAN_FEATURE_DISABLED: "当前套餐不包含该功能，升级套餐后可用",
   SETUP_REQUIRED: "服务尚未完成初始化，请先在服务端完成初始化",
+  TENANT_SIGNUP_REQUIRED: "请通过自助注册页面创建自己的网络空间",
 };
 
 function humanizeCode(code: string): string {

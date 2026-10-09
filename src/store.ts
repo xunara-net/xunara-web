@@ -36,7 +36,7 @@ export const session = {
       const snapshot = await endpoints.getSession();
       apply(snapshot);
     } catch {
-      state.authenticated = false;
+      apply({ authenticated: false });
     } finally {
       state.booted = true;
     }
@@ -60,11 +60,7 @@ export const session = {
     try {
       await endpoints.logout();
     } finally {
-      state.authenticated = false;
-      state.user = null;
-      state.session = null;
-      state.plan = null;
-      state.tenant = null;
+      apply({ authenticated: false });
     }
   },
 
@@ -95,5 +91,5 @@ function apply(snapshot: Snapshot): void {
   state.session = snapshot.session ?? null;
   state.plan = snapshot.plan ?? null;
   state.tenant = snapshot.tenant ?? null;
-  state.capabilities = snapshot.capabilities ?? state.capabilities;
+  state.capabilities = snapshot.capabilities ?? [];
 }

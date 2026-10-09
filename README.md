@@ -33,11 +33,15 @@ npm run test       # vitest
 npm run build      # 产物在 dist/，由 xunara-deploy 的 nginx 或控制面静态托管
 ```
 
+API 的线格式按端点分别定义：认证与套餐返回蛇形字段，历史会话与审计返回
+Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显式转换为页面模型；
+`src/api/endpoints.test.ts` 验证实际响应契约，不对所有接口做通用递归改名。
+
 ## 页面（路由）
 
 | 路由 | 页面 |
 | --- | --- |
-| `/login`、`/register` | 登录 / 邀请码注册 |
+| `/login`、`/register` | 登录 / 按部署策略邀请注册、开放注册或自助开通独立网络 |
 | `/dashboard` | 控制台首页 |
 | `/devices`、`/devices/:id` | 设备列表 / 设备详情（路由审批、删除） |
 | `/network`、`/dns`、`/routes` | 网络、DNS、路由与出口节点 |

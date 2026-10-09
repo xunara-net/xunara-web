@@ -56,9 +56,9 @@ function auditTime(event: AuditEvent): string {
 
 // The console is served by the control plane itself, so its own origin is the
 // login server a client needs. Nobody should have to derive that.
-const loginServer = computed(() => window.location.origin);
+const loginServer = computed(() => overview.value?.serverUrl || window.location.origin);
 const loginCommand = computed(() => `sudo tailscale up --login-server ${loginServer.value}`);
-const showOnboarding = computed(() => !loading.value && machines.value.length === 0);
+const showOnboarding = computed(() => !loading.value && !error.value && machines.value.length === 0);
 
 async function copy(text: string, label: string) {
   try {
