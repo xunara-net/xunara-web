@@ -61,6 +61,7 @@ async function runNetworkSmoke({ page, memberPage, origin, state, mark, assertSe
   await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
   await page.getByRole('button', { name: '打开菜单', exact: true }).click();
   assert.equal(await page.locator('.main').evaluate((element) => element.inert), true);
+  assert.equal(await page.getByRole('button', { name: '收起侧边栏', exact: true }).isVisible(), false);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === '打开菜单');
   await page.getByRole('button', { name: '打开菜单', exact: true }).click();
@@ -71,6 +72,8 @@ async function runNetworkSmoke({ page, memberPage, origin, state, mark, assertSe
   assert.equal(await page.locator('main').evaluate((element) => element.contains(document.activeElement) || element === document.activeElement), true);
   await noOverflow();
   await page.setViewportSize({ width: 1440, height: 1000 });
+  assert.equal(await page.getByRole('button', { name: '打开菜单', exact: true }).isVisible(), false);
+  assert.equal(await page.getByRole('button', { name: '关闭菜单', exact: true }).isVisible(), false);
   await page.getByRole('button', { name: '收起侧边栏', exact: true }).click();
   assert.ok((await page.locator('.sidebar').boundingBox()).width <= 80);
   await page.getByRole('button', { name: '展开侧边栏', exact: true }).click();
