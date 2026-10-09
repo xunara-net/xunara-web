@@ -16,7 +16,6 @@ import type {
   AuditPayload,
   AuthKey,
   DERPInfo,
-  DNSRecord,
   Machine,
   MemberInvitation,
   MemberInvitationRequest,
@@ -31,7 +30,6 @@ import type {
   PasskeyCredentialJSON,
   PlanPayload,
   ProfileUpdate,
-  ManagedRelay,
   Route,
   SessionRevocationResult,
   SecuritySnapshot,
@@ -118,21 +116,21 @@ export const revokeMemberInvitation = (id: string, csrfToken: string) =>
 // ---- devices --------------------------------------------------------------
 
 export const listMachines = async (): Promise<Machine[]> =>
-  (await api<{ machines: Machine[] | null }>("/api/v1/machines")).machines ?? [];
+  requiredList(await api<unknown>("/api/v1/machines"), "machines");
 
-export const getMachine = (ref: string | number) => api<Machine>(`/api/v1/machines/${ref}`);
+export const getMachine = (ref: string | number) => api<Machine>(`/api/v1/machines/${encodeURIComponent(ref)}`);
 
 export const deleteMachine = (ref: string | number) =>
-  api<void>(`/api/v1/machines/${ref}`, { method: "DELETE" });
+  api<void>(`/api/v1/machines/${encodeURIComponent(ref)}`, { method: "DELETE" });
 
-export const setMachineRoutes = (ref: string | number, routes: string[]) =>
-  api<{ approvedRoutes?: string[] }>(`/api/v1/machines/${ref}/routes`, {
+export const setMachineRoutes = (ref: string | number, changes: { approve: string[]; unapprove: string[] }) =>
+  api<Machine>(`/api/v1/machines/${encodeURIComponent(ref)}/routes`, {
     method: "POST",
-    body: { routes },
+    body: changes,
   });
 
 export const listPendingDevices = async (): Promise<PendingDevice[]> =>
-  (await api<{ devices: PendingDevice[] | null }>("/api/v1/devices")).devices ?? [];
+  requiredList(await api<unknown>("/api/v1/devices"), "devices");
 
 export const approveDevice = (id: string) =>
   api<void>(`/api/v1/devices/${id}/approve`, { method: "POST", body: {} });
@@ -155,38 +153,13 @@ function requiredList<Value>(payload: unknown, field: string): Value[] {
 export const listRoutes = async (): Promise<Route[]> =>
   requiredList(await api<unknown>("/api/v1/routes"), "routes");
 
-export const listDNS = async (): Promise<DNSRecord[]> =>
-  (await api<{ records: DNSRecord[] | null }>("/api/v1/dns")).records ?? [];
-
-export const deleteDNS = (id: number) => api<void>(`/api/v1/dns/${id}`, { method: "DELETE" });
-
-export const getPolicy = () =>
-  api<{
-    configured: boolean;
-    path?: string;
-    rules?: number;
-    warnings?: string[];
-    unsupported?: string[];
-    loadError?: string;
-  }>("/api/v1/policy");
-
 export const getDERP = async (): Promise<DERPInfo> => {
   const payload = await api<DERPInfo>("/api/v2/derp");
   if (!payload || typeof payload.mapConfigured !== "boolean" ||
-    !Number.isSafeInteger(payload.regionsServed) || payload.regionsServed < 0) {
+    !Number.isSafeInteger(payload.regionsServed) || payload.regionsServed < 0 || typeof payload.policyMode !== "string" || !Array.isArray(payload.regions) || payload.regionsServed !== payload.regions.length || payload.regions.some((region) => !region || !Number.isSafeInteger(region.id) || typeof region.name !== "string" || typeof region.code !== "string" || !Array.isArray(region.hosts) || region.hosts.some((host) => typeof host !== "string") || !Number.isSafeInteger(region.nodeCount))) {
     throw new Error("服务返回的中继配置格式异常，请刷新重试");
   }
   return payload;
-};
-
-export const listManagedRelays = async (): Promise<ManagedRelay[]> => {
-  // /relays 是客户端 Peer Relay 策略；托管 DERP 必须读取 /relays/enrolled，不能混为一谈。
-  const items = requiredList<ManagedRelay>(await api<unknown>("/api/v2/relays/enrolled"), "items");
-  if (items.some((relay) => !relay || typeof relay.id !== "string" || !relay.id ||
-    typeof relay.online !== "boolean" || typeof relay.healthy !== "boolean" || typeof relay.desiredState !== "string")) {
-    throw new Error("服务返回的托管中继格式异常，请刷新重试");
-  }
-  return items;
 };
 
 export const listExitNodes = async (): Promise<unknown[]> =>
@@ -246,7 +219,7 @@ export const updateUser = (
 ) => api<User>(`/api/v1/users/${id}`, { method: "PATCH", body });
 
 export const listAuthKeys = async (): Promise<AuthKey[]> =>
-  (await api<{ authKeys: AuthKey[] | null }>("/api/v1/auth-keys")).authKeys ?? [];
+  requiredList(await api<unknown>("/api/v1/auth-keys"), "authKeys");
 
 export const createAuthKey = (body: {
   reusable: boolean;
@@ -259,7 +232,7 @@ export const deleteAuthKey = (id: number) =>
   api<void>(`/api/v1/auth-keys/${id}`, { method: "DELETE" });
 
 export const listAPIKeys = async (): Promise<ApiKey[]> =>
-  (await api<{ apiKeys: ApiKey[] | null }>("/api/v1/api-keys")).apiKeys ?? [];
+  requiredList(await api<unknown>("/api/v1/api-keys"), "apiKeys");
 
 export const createAPIKey = (body: { name: string; scopes: string[]; ttl?: string }) =>
   api<{ id: string; name: string; token: string }>("/api/v1/api-keys", { method: "POST", body });

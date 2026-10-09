@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
 import type { Machine, PendingDevice } from "../api/types";
@@ -8,18 +8,20 @@ import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { formatTime, relativeTime } from "../utils/format";
+import { authorizationLabel, canManageNetwork } from "../utils/devices";
 
 const loading = ref(true);
 const error = ref("");
 const machines = ref<Machine[]>([]);
 const pending = ref<PendingDevice[]>([]);
 const busy = ref<Record<string, boolean>>({});
+const canWrite = computed(() => canManageNetwork(session.state.user?.role));
 
 const machineColumns = [
   { key: "hostname", title: "设备" },
   { key: "status", title: "状态" },
   { key: "ipv4", title: "Tailscale IP" },
-  { key: "method", title: "连接方式" },
+  { key: "method", title: "授权方式" },
   { key: "lastSeen", title: "最后在线" },
   { key: "actions", title: "操作", align: "right" as const },
 ];
@@ -39,6 +41,7 @@ async function load() {
 onMounted(load);
 
 async function approve(device: PendingDevice) {
+  if (!canWrite.value) return;
   busy.value[device.id] = true;
   try {
     await ep.approveDevice(device.id);
@@ -52,6 +55,7 @@ async function approve(device: PendingDevice) {
 }
 
 async function deny(device: PendingDevice) {
+  if (!canWrite.value) return;
   busy.value[device.id] = true;
   try {
     await ep.denyDevice(device.id);
@@ -65,6 +69,7 @@ async function deny(device: PendingDevice) {
 }
 
 async function remove(machine: Machine) {
+  if (!canWrite.value) return;
   if (!window.confirm(`确定删除设备「${machine.hostname || machine.id}」？该设备的密钥将立即失效。`)) return;
   busy.value[machine.stableId] = true;
   try {
@@ -103,7 +108,7 @@ async function remove(machine: Machine) {
       </template>
       <template #cell-created="{ row }">{{ formatTime(row.created) }}</template>
       <template #cell-actions="{ row }">
-        <div class="row-actions">
+        <div v-if="canWrite" class="row-actions">
           <button class="btn small primary" :disabled="busy[row.id]" @click="approve(row)">批准</button>
           <button class="btn small danger" :disabled="busy[row.id]" @click="deny(row)">拒绝</button>
         </div>
@@ -129,10 +134,11 @@ async function remove(machine: Machine) {
         <span v-if="row.exitNode" class="badge primary" style="margin-left: 6px">出口节点</span>
       </template>
       <template #cell-lastSeen="{ row }">{{ relativeTime(row.lastSeen) }}</template>
+      <template #cell-method="{ row }">{{ authorizationLabel(row.method) }}</template>
       <template #cell-actions="{ row }">
         <div class="row-actions">
           <router-link class="btn small" :to="`/devices/${row.id}`">详情</router-link>
-          <button class="btn small danger" :disabled="busy[row.stableId]" @click="remove(row)">删除</button>
+          <button v-if="canWrite" class="btn small danger" :disabled="busy[row.stableId]" @click="remove(row)">删除</button>
         </div>
       </template>
     </DataTable>

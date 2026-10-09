@@ -152,6 +152,16 @@ code, .mono {
 }
 
 .sidebar-nav { flex: 1; overflow-y: auto; padding: 6px 10px 18px; }
+.brand-name { white-space: nowrap; }
+.brand-name .muted { color: var(--text-faint); font-size: 12px; font-weight: 400; }
+.sidebar-collapse { margin: 10px; justify-content: flex-start; }
+.mobile-menu, .drawer-close { display: none; }
+.sidebar-collapsed { --sidebar-width: 72px; }
+.sidebar-collapsed .brand-name, .sidebar-collapsed .nav-label, .sidebar-collapsed .nav-group-title { display: none; }
+.sidebar-collapsed .nav-item { justify-content: center; padding: 11px 8px; }
+.sidebar-collapsed .sidebar-brand { padding-left: 20px; }
+.sidebar-collapsed .nav-group { margin-top: 6px; }
+.drawer-backdrop { position: fixed; inset: 0; background: rgb(15 17 21 / 45%); z-index: 45; }
 
 .nav-group { margin-top: 14px; }
 .nav-group-title {
@@ -200,6 +210,19 @@ code, .mono {
 .crumbs strong { color: var(--text); font-weight: 600; }
 
 .content { padding: 22px 24px 60px; max-width: 1240px; width: 100%; }
+.content:focus { outline: none; }
+
+@media (max-width: 900px) {
+  .sidebar { width: min(284px, 84vw); height: 100dvh; z-index: 50; transform: translateX(-100%); transition: transform 160ms ease; visibility: hidden; }
+  .sidebar.drawer-open { transform: translateX(0); visibility: visible; box-shadow: var(--shadow-lg); }
+  .main { margin-left: 0; }
+  .mobile-menu, .drawer-close { display: inline-flex; }
+  .drawer-close { margin-left: auto; font-size: 24px; }
+  .sidebar-collapse, .desktop-crumb { display: none; }
+  .topbar { padding: 0 12px; gap: 8px; }
+  .nav-item { min-height: 44px; }
+  .sidebar-brand { padding: 12px 16px; }
+}
 
 /* ---- surfaces ----------------------------------------------------------- */
 
@@ -234,11 +257,43 @@ code, .mono {
   .grid.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
-  .sidebar { position: static; width: 100%; height: auto; }
-  .shell { flex-direction: column; }
   .main { margin-left: 0; }
   .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
+  .account-name { display: none; }
+  .card-head { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+  .card-body { padding: 14px; }
+  .page-head { flex-wrap: wrap; }
+  .kv { grid-template-columns: 92px minmax(0, 1fr); }
+  .btn { min-height: 40px; }
+  .toasts { right: 12px; left: 12px; bottom: 12px; }
+  .toast { min-width: 0; max-width: 100%; }
+}
+
+.feature-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.feature-tabs .btn { border-color: transparent; box-shadow: none; }
+.feature-tabs .active { background: var(--primary-soft); color: var(--primary-strong); }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbar .input { width: auto; flex: 1; min-width: 160px; }
+.toolbar .select { width: auto; max-width: 100%; }
+.stack { display: grid; gap: 14px; }
+.muted { color: var(--text-muted); }
+.small-text { font-size: 12.5px; }
+.wrap-anywhere { overflow-wrap: anywhere; }
+.editor-area { width: 100%; min-height: 320px; font: 13px/1.7 ui-monospace, monospace; resize: vertical; }
+.rule-list { display: grid; gap: 10px; }
+.rule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+.rule-item > div { min-width: 0; overflow-wrap: anywhere; }
+.rule-item .row-actions { flex-shrink: 0; }
+.rule-flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 500; }
+.diff-row { font-size: 12px; padding: 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.diff-row.added { background: var(--success-soft); }
+.diff-row.removed { background: var(--danger-soft); }
+@media (max-width: 560px) {
+  .rule-item { align-items: flex-start; flex-wrap: wrap; }
+  .rule-item .row-actions { width: 100%; }
+  .toolbar > .input, .toolbar > .select { width: 100%; }
+  .feature-tabs .btn { flex: 1; white-space: nowrap; padding: 8px; }
 }
 
 .stat { padding: 16px 18px; }

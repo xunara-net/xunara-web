@@ -247,6 +247,12 @@ export interface Machine {
   ephemeral: boolean;
   expired: boolean;
   method: string;
+  os?: string;
+  osVersion?: string;
+  clientVersion?: string;
+  dnsName?: string;
+  expires?: string;
+  tags?: string[];
   ipv4?: string;
   ipv6?: string;
   created: string;
@@ -276,13 +282,6 @@ export interface Route {
   approved: boolean;
   primary: boolean;
   exitNode: boolean;
-}
-
-export interface DNSRecord {
-  id: number;
-  name: string;
-  type: string;
-  value: string;
 }
 
 export interface AuthKey {
@@ -342,6 +341,15 @@ export interface ManagedRelay {
   hostname: string;
   regionCode?: string;
   regionName?: string;
+  regionId: number;
+  certName?: string;
+  visibility: string;
+  configVersion: number;
+  bandwidthLimit: number;
+  derpPort?: number;
+  stunPort?: number;
+  version?: string;
+  connectedClients?: number;
   desiredState: string;
   online: boolean;
   healthy: boolean;
@@ -351,6 +359,8 @@ export interface ManagedRelay {
 export interface DERPInfo {
   mapConfigured: boolean;
   regionsServed: number;
+  policyMode: string;
+  regions: { id: number; code: string; name: string; hosts: string[]; nodeCount: number }[];
   [key: string]: unknown;
 }
 

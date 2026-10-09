@@ -1,5 +1,42 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, errorMessage } from "./client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api, ApiError, errorMessage } from "./client";
+
+describe("request lifecycle", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { location: { origin: "https://tenant.example.test" } });
+  });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it("aborts a stalled write without claiming it failed or retrying", async () => {
+    const fetchMock = vi.fn((_url: unknown, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const rejected = expect(api("/api/v2/policy/configuration", { method: "PUT", body: {} })).rejects.toMatchObject({ status: 408, errorCode: "REQUEST_TIMEOUT" });
+    await vi.advanceTimersByTimeAsync(30000);
+    await rejected;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]![1].signal!.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(errorMessage(new ApiError(408, "REQUEST_TIMEOUT: outcome unknown"))).toContain("请先刷新检查");
+  });
+
+  it("clears the timer after an empty success or transport failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 204 })).mockRejectedValueOnce(new TypeError("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api("/api/v2/dns/records/1", { method: "DELETE" })).resolves.toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(api("/api/v2/policy/configuration")).rejects.toThrow("offline");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not accept HTML as a successful JSON API response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>proxy fallback</html>")));
+    await expect(api("/api/v2/policy/configuration")).rejects.toMatchObject({ errorCode: "API_RESPONSE_INVALID" });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
 
 describe("ApiError", () => {
   it("extracts the stable error code from a plan gate message", () => {

@@ -34,6 +34,7 @@ const routes = [
   },
   { path: "/members", name: "members", component: () => import("./views/MembersView.vue") },
   { path: "/dns", name: "dns", component: () => import("./views/DNSView.vue") },
+  { path: "/relays", name: "relays", component: () => import("./views/RelaysView.vue") },
   { path: "/routes", name: "routes", component: () => import("./views/RoutesView.vue") },
   { path: "/api", name: "api", component: () => import("./views/ApiKeysView.vue") },
   { path: "/security", name: "security", component: () => import("./views/SecurityView.vue") },

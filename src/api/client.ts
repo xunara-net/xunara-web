@@ -42,15 +42,24 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     credentials: "same-origin",
     headers: { Accept: "application/json", ...options.headers },
   };
+  const controller = new AbortController();
+  init.signal = controller.signal;
   if (options.body !== undefined) {
     init.headers = { ...init.headers, "Content-Type": "application/json" };
     init.body = JSON.stringify(options.body);
   }
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-  const resp = await fetch(url, init);
-  if (resp.status === 204) return undefined as T;
-
-  const text = await resp.text();
+  let resp: Response;
+  let text: string;
+  try {
+    resp = await fetch(url, init);
+    if (resp.status === 204) return undefined as T;
+    text = await resp.text();
+  } catch (err) {
+    if (controller.signal.aborted) throw new ApiError(408, "REQUEST_TIMEOUT: request outcome is unknown; refresh before submitting again");
+    throw err;
+  } finally { clearTimeout(timeout); }
   let payload: any = undefined;
   if (text) {
     try {
@@ -66,6 +75,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     const code = typeof payload?.code === "string" ? payload.code : "";
     throw new ApiError(resp.status, message, code);
   }
+  if (payload === undefined) throw new ApiError(502, "API_RESPONSE_INVALID: expected a JSON response");
   return payload as T;
 }
 
@@ -80,6 +90,8 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  REQUEST_TIMEOUT: "请求超时，尚未确认操作结果；请先刷新检查，勿连续重复提交",
+  API_RESPONSE_INVALID: "服务响应格式异常，请刷新重试",
   AUTH_UNAVAILABLE: "登录服务暂时不可用，当前会话未被退出，请稍后重试",
   DEVICE_LIMIT_REACHED: "当前套餐的设备数已达上限，升级套餐后可继续添加设备",
   AUTH_KEY_LIMIT_REACHED: "预授权密钥数量已达上限，请删除不再使用的密钥或升级套餐",
@@ -93,6 +105,17 @@ const codeMessages: Record<string, string> = {
   REGISTRATION_UNAVAILABLE: "注册服务暂时不可用，请稍后重试",
   ROUTE_LIMIT_REACHED: "路由数量已达上限，请撤销不用的路由或升级套餐",
   PLAN_FEATURE_DISABLED: "当前套餐不包含该功能，升级套餐后可用",
+  CONFIG_CHANGED: "配置已被其他管理员修改，请刷新后重新预览；当前草稿未丢弃",
+  CONFIG_NOT_FOUND: "此配置版本不存在，请刷新历史列表",
+  CONFIG_INVALID: "DNS 配置无效，请检查解析器地址和域名",
+  POLICY_INVALID: "策略校验未通过，原有权限不受影响",
+  POLICY_TEST_FAILED: "策略自检未通过或暂时无法执行，尚未发布",
+  POLICY_PROBE_INVALID: "请选择本网络内未过期的设备和有效服务端口",
+  NETWORK_CONFIG_UNAVAILABLE: "网络配置暂时不可用，未将故障误报为默认配置",
+  NETWORK_WRITE_FORBIDDEN: "当前登录或网络管理权限已变化，请重新登录确认",
+  DNS_RECORD_INVALID: "名称需在本网络域名下，A 对应 IPv4，AAAA 对应 IPv6",
+  DNS_RECORD_PROTECTED: "设备自动生成或证书工作流的记录不可在此修改",
+  DNS_RECORD_LIMIT_REACHED: "DNS 记录已达到上限，请清理不再使用的自定义记录",
   SETUP_REQUIRED: "服务尚未完成初始化，请先在服务端完成初始化",
   TENANT_SIGNUP_REQUIRED: "请通过自助注册页面创建自己的网络空间",
   CURRENT_PASSWORD_INVALID: "当前密码不正确，请重新输入",

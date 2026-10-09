@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
@@ -9,6 +9,7 @@ import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import AsyncSection from "../components/AsyncSection.vue";
 import { formatTime, relativeTime } from "../utils/format";
+import { authorizationLabel, canManageNetwork, routeChanges } from "../utils/devices";
 
 const route = useRoute();
 const router = useRouter();
@@ -18,23 +19,27 @@ const error = ref("");
 const machine = ref<Machine | null>(null);
 const routeDraft = ref<string[]>([]);
 const saving = ref(false);
+const canWrite = computed(() => canManageNetwork(session.state.user?.role));
 
 const announced = computed(() => machine.value?.announcedRoutes ?? []);
 const approved = computed(() => machine.value?.approvedRoutes ?? []);
+const routeOptions = computed(() => [...new Set([...announced.value, ...approved.value])]);
 
-onMounted(load);
+watch(() => route.params.id, load, { immediate: true });
 
 async function load() {
+  const id = String(route.params.id ?? "");
   loading.value = true;
   error.value = "";
   try {
-    const id = String(route.params.id ?? "");
-    machine.value = await ep.getMachine(id);
+    const result = await ep.getMachine(id);
+    if (id !== String(route.params.id ?? "")) return;
+    machine.value = result;
     routeDraft.value = [...(machine.value.approvedRoutes ?? [])];
   } catch (err) {
-    error.value = errorMessage(err);
+    if (id === String(route.params.id ?? "")) error.value = errorMessage(err);
   } finally {
-    loading.value = false;
+    if (id === String(route.params.id ?? "")) loading.value = false;
   }
 }
 
@@ -50,7 +55,8 @@ async function saveRoutes() {
   if (!machine.value) return;
   saving.value = true;
   try {
-    await ep.setMachineRoutes(machine.value.id, routeDraft.value);
+    if (!canWrite.value) return;
+    await ep.setMachineRoutes(machine.value.id, routeChanges(approved.value, routeDraft.value));
     session.toast("success", "路由已更新");
     await load();
   } catch (err) {
@@ -61,7 +67,7 @@ async function saveRoutes() {
 }
 
 async function remove() {
-  if (!machine.value) return;
+  if (!machine.value || !canWrite.value) return;
   if (!window.confirm(`确定删除设备「${machine.value.hostname}」？`)) return;
   try {
     await ep.deleteMachine(machine.value.id);
@@ -77,7 +83,7 @@ async function remove() {
   <PageHeader :title="machine?.hostname || '设备详情'" desc="设备信息、路由与撤销操作。">
     <template #actions>
       <router-link class="btn" to="/devices">返回列表</router-link>
-      <button class="btn danger" @click="remove">删除设备</button>
+      <button v-if="canWrite" class="btn danger" @click="remove">删除设备</button>
     </template>
   </PageHeader>
 
@@ -90,7 +96,10 @@ async function remove() {
             <div class="k">设备名称</div><div class="v">{{ machine.hostname || "—" }}</div>
             <div class="k">设备 ID</div><div class="v mono">{{ machine.stableId }}</div>
             <div class="k">归属用户</div><div class="v">{{ machine.userLoginName || `#${machine.userId}` }}</div>
-            <div class="k">连接方式</div><div class="v">{{ machine.method || "—" }}</div>
+            <div class="k">授权方式</div><div class="v">{{ authorizationLabel(machine.method) }}</div>
+            <div class="k">系统与版本</div><div class="v">{{ [machine.os, machine.osVersion].filter(Boolean).join(' ') || '未上报' }}</div>
+            <div class="k">客户端版本</div><div class="v">{{ machine.clientVersion || '未上报' }}</div>
+            <div class="k">DNS 名称</div><div class="v mono">{{ machine.dnsName || '未配置' }}</div>
             <div class="k">首次加入</div><div class="v">{{ formatTime(machine.created) }}</div>
             <div class="k">最后在线</div><div class="v">{{ relativeTime(machine.lastSeen) }}</div>
             <div class="k">临时设备</div><div class="v">{{ machine.ephemeral ? "是" : "否" }}</div>
@@ -118,21 +127,22 @@ async function remove() {
         <span class="hint">设备宣告的子网路由需要批准后才会下发到网络</span>
       </div>
       <div class="card-body">
-        <div v-if="announced.length === 0" class="empty" style="padding: 20px">
+        <div v-if="routeOptions.length === 0" class="empty" style="padding: 20px">
           <div class="title">该设备没有宣告路由</div>
           <div class="desc">在设备上运行 <code>tailscale up --advertise-routes=…</code> 后可在此批准。</div>
         </div>
         <template v-else>
-          <label v-for="route in announced" :key="route" class="checkbox" style="margin-bottom: 10px">
+          <label v-for="route in routeOptions" :key="route" class="checkbox" style="margin-bottom: 10px">
             <input
-              type="checkbox"
+              type="checkbox" :disabled="!canWrite || saving"
               :checked="routeDraft.includes(route)"
               @change="toggleRoute(route, ($event.target as HTMLInputElement).checked)"
             />
             <span class="mono">{{ route }}</span>
+            <span v-if="!announced.includes(route)" class="badge warning">已不再宣告，可撤销批准</span>
           </label>
           <div>
-            <button class="btn primary" :disabled="saving" @click="saveRoutes">保存路由</button>
+            <button v-if="canWrite" class="btn primary" :disabled="saving" @click="saveRoutes">保存路由</button>
           </div>
         </template>
       </div>

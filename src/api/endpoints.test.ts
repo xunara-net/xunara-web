@@ -67,6 +67,17 @@ function respond(body: unknown) {
 }
 
 describe("control plane response contracts", () => {
+  it("sends the backend's route delta rather than an unsupported routes field", async () => {
+    const updated = { id: 2, approvedRoutes: ["10.1.0.0/24"] };
+    respond(updated);
+    expect(await endpoints.setMachineRoutes(2, { approve: ["10.1.0.0/24"], unapprove: ["10.0.0.0/24"] })).toEqual(updated);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ approve: ["10.1.0.0/24"], unapprove: ["10.0.0.0/24"] });
+  });
+
+  it.each([endpoints.listMachines, endpoints.listPendingDevices, endpoints.listAuthKeys, endpoints.listAPIKeys])("rejects a missing resource list instead of rendering an empty network", async (load) => {
+    respond({});
+    await expect(load()).rejects.toThrow("数据格式异常");
+  });
   it("loads explicit login and setup policy without enabling defaults", async () => {
     const methods = {
       providers: [{ id: "oidc", name: "组织账号", start_url: "/api/v1/auth/start?provider=oidc" }],
@@ -80,7 +91,7 @@ describe("control plane response contracts", () => {
 
   it.each([undefined, null, {}, { providers: [] }])("rejects incomplete provider policy %j", async (payload) => {
     respond(payload);
-    await expect(endpoints.getProviders()).rejects.toThrow("登录方式响应格式无效");
+    await expect(endpoints.getProviders()).rejects.toThrow(payload === undefined ? "API_RESPONSE_INVALID" : "登录方式响应格式无效");
   });
 
   it.each([
