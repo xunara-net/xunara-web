@@ -67,6 +67,43 @@ function respond(body: unknown) {
 }
 
 describe("control plane response contracts", () => {
+  it("loads explicit login and setup policy without enabling defaults", async () => {
+    const methods = {
+      providers: [{ id: "oidc", name: "组织账号", start_url: "/api/v1/auth/start?provider=oidc" }],
+      local_login: false, setup_required: true, passkeys: false, registration: "open",
+      self_service: { endpoint: "/api/self-service/v1/signup" },
+    };
+    respond(methods);
+    expect(await endpoints.getProviders()).toEqual(methods);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://alice.example.test/api/v1/auth/providers");
+  });
+
+  it.each([undefined, null, {}, { providers: [] }])("rejects incomplete provider policy %j", async (payload) => {
+    respond(payload);
+    await expect(endpoints.getProviders()).rejects.toThrow("登录方式响应格式无效");
+  });
+
+  it.each([
+    { local_login: "true" }, { setup_required: undefined }, { passkeys: 1 }, { registration: "unknown" },
+    { providers: [null] }, { providers: [{ id: "oidc", name: "组织账号", start_url: "https://outside.example/login" }] },
+    { providers: [{ id: "oidc", name: "组织账号", start_url: "/api/v1/auth/start?provider=other" }] },
+    { self_service: { endpoint: "https://outside.example/signup" } },
+  ])("rejects incomplete or unsafe provider policy %j", async (overrides) => {
+    respond({
+      providers: [], local_login: true, setup_required: false, passkeys: false, registration: "invite", ...overrides,
+    });
+    await expect(endpoints.getProviders()).rejects.toThrow("登录方式响应格式无效");
+  });
+
+  it("preserves unavailable login policy and reads it again after recovery", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "AUTH_UNAVAILABLE: try again later" }), {
+      status: 503, headers: { "Content-Type": "application/json" },
+    }));
+    await expect(endpoints.getProviders()).rejects.toMatchObject({ status: 503, errorCode: "AUTH_UNAVAILABLE" });
+    respond({ providers: [], local_login: true, setup_required: false, passkeys: false, registration: "closed" });
+    expect(await endpoints.getProviders()).toMatchObject({ local_login: true, setup_required: false, registration: "closed" });
+  });
+
   it("loads account sessions using server statuses, a current ID and a CSRF token", async () => {
     respond({
       current_session_id: "current", csrf_token: "session-csrf", generated_at: "2026-10-09T01:00:00Z",

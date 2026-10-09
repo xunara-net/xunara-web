@@ -3,6 +3,7 @@
 
 import { api } from "./client";
 import { toAccount, toAccountSessions, toAuditEvent, toPlan, toSnapshot } from "./adapters";
+import { providerLoginURL } from "../utils/auth";
 import type {
   AccountPayload,
   AccountPasskey,
@@ -42,7 +43,19 @@ import type {
 
 export const getSession = async () => toSnapshot(await api<SnapshotPayload>("/api/v1/auth/session"));
 
-export const getProviders = () => api<ProvidersPayload>("/api/v1/auth/providers");
+export const getProviders = async () => {
+  const payload = await api<ProvidersPayload>("/api/v1/auth/providers");
+  // 未确认的初始化 / 登录配置不是关闭或开放状态；畸形响应不能启用表单。
+  if (!payload || !Array.isArray(payload.providers) || typeof payload.local_login !== "boolean" ||
+      typeof payload.setup_required !== "boolean" || typeof payload.passkeys !== "boolean" ||
+      !["closed", "invite", "open"].includes(payload.registration) ||
+      payload.providers.some((provider) => !provider || typeof provider.id !== "string" || !provider.id.trim() ||
+        typeof provider.name !== "string" || !provider.name.trim() || !providerLoginURL(provider.start_url, undefined, provider.id)) ||
+      (payload.self_service !== undefined && (!payload.self_service || payload.self_service.endpoint !== "/api/self-service/v1/signup"))) {
+    throw new Error("登录方式响应格式无效，请稍后重试或联系管理员。");
+  }
+  return payload;
+};
 
 /**
  * signupTenant creates a whole tenant through a deployment's sign-up desk.

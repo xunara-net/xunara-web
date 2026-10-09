@@ -6,6 +6,7 @@ import { errorMessage } from "../api/client";
 import { session } from "../store";
 import { getPasskey, passkeyAvailability, passkeyErrorMessage } from "../utils/passkey";
 import { legacyProviderLoginURL, loginDestination, providerLoginURL } from "../utils/auth";
+import type { ProvidersPayload } from "../api/types";
 
 const route = useRoute();
 const router = useRouter();
@@ -14,39 +15,49 @@ const login = ref("");
 const password = ref("");
 const busy = ref("");
 const error = ref("");
-const providers = ref<{ id: string; name: string; start_url: string }[]>([]);
+const info = ref<ProvidersPayload | null>(null);
+const loading = ref(true);
+const loadError = ref("");
+const providers = computed(() => info.value?.providers ?? []);
 const providerLinks = computed(() => providers.value.map((provider) => ({
   ...provider, url: providerLoginURL(provider.start_url, route.query.return_to, provider.id),
 })));
-const setupRequired = ref(false);
-const registration = ref("closed");
-const localLogin = ref(true);
-const passkeys = ref(false);
+const setupRequired = computed(() => info.value?.setup_required ?? false);
+const registration = computed(() => info.value?.registration ?? "closed");
+const localLogin = computed(() => info.value?.local_login ?? false);
+const passkeys = computed(() => info.value?.passkeys ?? false);
 const availability = passkeyAvailability();
 let operation: AbortController | null = null;
-onUnmounted(() => operation?.abort());
+let disposed = false;
+onUnmounted(() => { disposed = true; operation?.abort(); });
 
-onMounted(async () => {
+onMounted(() => { void loadMethods(); });
+
+async function loadMethods() {
+  if (busy.value) return;
+  loading.value = true;
+  loadError.value = "";
+  error.value = "";
+  info.value = null;
   try {
-    const info = await ep.getProviders();
-    providers.value = info.providers;
-    setupRequired.value = info.setup_required;
-    registration.value = info.registration;
-    localLogin.value = info.local_login;
-    passkeys.value = info.passkeys;
-    if (info.setup_required) error.value = "服务尚未初始化，请先由管理员在服务端完成初始化。";
+    const payload = await ep.getProviders();
+    if (disposed) return;
+    info.value = payload;
+    if (payload.setup_required) error.value = "服务尚未初始化，请先由管理员在服务端完成初始化。";
     else {
       // 旧第三方书签经过同一受限 API 入口，不能重新引入 /login 的后端/SPA 双实现。
-      const legacyStart = legacyProviderLoginURL(info.providers, route.query.provider, route.query.return_to);
+      const legacyStart = legacyProviderLoginURL(payload.providers, route.query.provider, route.query.return_to);
       if (legacyStart) window.location.assign(legacyStart);
     }
   } catch (err) {
-    error.value = errorMessage(err);
+    loadError.value = errorMessage(err);
+  } finally {
+    loading.value = false;
   }
-});
+}
 
 async function submit() {
-  if (busy.value || setupRequired.value) return;
+  if (loading.value || loadError.value || busy.value || setupRequired.value || !localLogin.value) return;
   error.value = "";
   busy.value = "password";
   try {
@@ -60,7 +71,7 @@ async function submit() {
 }
 
 async function passkeyLogin() {
-  if (busy.value || !availability.supported || setupRequired.value) return;
+  if (loading.value || loadError.value || busy.value || !passkeys.value || !availability.supported || setupRequired.value) return;
   const controller = new AbortController();
   operation = controller;
   error.value = "";
@@ -104,8 +115,13 @@ async function afterLogin() {
       <div v-if="route.query.password_changed === '1'" class="alert success" role="status" style="margin-top: 18px">密码已修改，所有旧登录已退出。请使用新密码重新登录。</div>
       <div v-if="route.query.signed_out === 'all' || route.query.signed_out === 'current'" class="alert success" role="status" style="margin-top: 18px">{{ route.query.signed_out === 'all' ? '全部控制台登录已退出，请重新登录。' : '当前登录已退出，请重新登录。' }}</div>
       <div v-if="error" class="alert error" role="alert" style="margin-top: 18px">{{ error }}</div>
+      <div v-if="loading" class="empty" role="status">正在读取登录方式…</div>
+      <div v-else-if="loadError" class="alert error" role="alert" style="margin-top: 18px">
+        <p>{{ loadError }}</p>
+        <button class="btn" style="margin-top: 12px" @click="loadMethods">重试登录配置</button>
+      </div>
 
-      <form v-if="localLogin" style="margin-top: 20px" @submit.prevent="submit">
+      <form v-if="!loading && !loadError && localLogin" style="margin-top: 20px" @submit.prevent="submit">
         <div class="field">
           <label for="login">登录名</label>
           <input id="login" v-model="login" class="input" autocomplete="username" placeholder="请输入注册时的登录名" />
