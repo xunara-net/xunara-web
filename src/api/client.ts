@@ -103,6 +103,16 @@ const codeMessages: Record<string, string> = {
   INVALID_ACCOUNT: "资料格式不正确，请检查昵称和联系邮箱",
   CSRF_INVALID: "页面已失效，请刷新后重试",
   HUMAN_SESSION_REQUIRED: "请使用个人账号登录后操作",
+  PASSKEY_UNAVAILABLE: "当前站点尚未启用通行密钥",
+  PASSKEY_START_FAILED: "未能开始通行密钥操作，请稍后重试",
+  PASSKEY_RATE_LIMITED: "通行密钥登录尝试过多，请稍后再试",
+  PASSKEY_LOGIN_FAILED: "通行密钥登录失败，请重新发起并完成验证",
+  PASSKEY_LIST_FAILED: "通行密钥列表读取失败，请稍后重试",
+  PASSKEY_INVALID: "通行密钥名称最多 64 个字符，且不能含控制字符",
+  PASSKEY_REGISTRATION_FAILED: "通行密钥验证失败，请重新开始添加",
+  PASSKEY_SAVE_FAILED: "通行密钥未能保存，请重新开始添加",
+  PASSKEY_DELETE_FAILED: "通行密钥删除失败，请稍后重试",
+  PASSKEY_NOT_FOUND: "该通行密钥不存在或不属于当前账户，请刷新列表",
 };
 
 function humanizeCode(code: string): string {

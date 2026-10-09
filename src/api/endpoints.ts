@@ -2,9 +2,11 @@
 // stay free of URL strings, which keeps the API version in one place.
 
 import { api } from "./client";
-import { toAccount, toAccountSessions, toAuditEvent, toPlan, toSession, toSnapshot } from "./adapters";
+import { toAccount, toAccountSessions, toAuditEvent, toPlan, toSnapshot } from "./adapters";
 import type {
   AccountPayload,
+  AccountPasskey,
+  AccountPasskeys,
   AccountSessionsPayload,
   ApiKey,
   ProvidersPayload,
@@ -20,12 +22,13 @@ import type {
   PendingDevice,
   PasswordChange,
   PasswordChangeResult,
+  PasskeyCreationOptionsJSON,
+  PasskeyRequestOptionsJSON,
+  PasskeyCredentialJSON,
   PlanPayload,
   ProfileUpdate,
   RelayInfo,
   Route,
-  SessionInfo,
-  SessionPayload,
   SessionRevocationResult,
   SecuritySnapshot,
   SnapshotPayload,
@@ -65,7 +68,11 @@ export const signup = async (body: {
   password: string;
 }) => toSnapshot(await api<SnapshotPayload>("/api/v1/auth/signup", { method: "POST", body }));
 
-export const logout = () => api<void>("/api/v1/auth/logout", { method: "POST", body: {} });
+export const beginPasskeyLogin = () =>
+  api<{ options: { publicKey: PasskeyRequestOptionsJSON } }>("/api/v1/auth/passkey/begin", { method: "POST", body: {} });
+
+export const finishPasskeyLogin = async (credential: PasskeyCredentialJSON) =>
+  toSnapshot(await api<SnapshotPayload>("/api/v1/auth/passkey/finish", { method: "POST", body: credential }));
 
 // ---- tenant overview ------------------------------------------------------
 
@@ -152,6 +159,24 @@ export const revokeAccountSession = (id: string, csrfToken: string) =>
     method: "DELETE", headers: { "X-CSRF-Token": csrfToken },
   });
 
+// 通行密钥是账户安全能力，不使用网络 API Key 或套餐写权限代替 Human Session。
+export const getAccountPasskeys = () => api<AccountPasskeys>("/api/v1/account/passkeys");
+
+export const beginAccountPasskey = (csrfToken: string) =>
+  api<{ options: { publicKey: PasskeyCreationOptionsJSON } }>("/api/v1/account/passkeys/begin", {
+    method: "POST", body: {}, headers: { "X-CSRF-Token": csrfToken },
+  });
+
+export const finishAccountPasskey = (name: string, credential: PasskeyCredentialJSON, csrfToken: string) =>
+  api<{ passkey: AccountPasskey }>("/api/v1/account/passkeys/finish", {
+    method: "POST", body: { name, credential }, headers: { "X-CSRF-Token": csrfToken },
+  });
+
+export const deleteAccountPasskey = (id: string, csrfToken: string) =>
+  api<void>(`/api/v1/account/passkeys/${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: { "X-CSRF-Token": csrfToken },
+  });
+
 export const listUsers = async (): Promise<User[]> =>
   (await api<{ users: User[] | null }>("/api/v1/users")).users ?? [];
 
@@ -159,12 +184,6 @@ export const updateUser = (
   id: number,
   body: { role?: string; displayName?: string; email?: string },
 ) => api<User>(`/api/v1/users/${id}`, { method: "PATCH", body });
-
-export const listSessions = async (): Promise<SessionInfo[]> =>
-  ((await api<{ sessions: SessionPayload[] | null }>("/api/v1/sessions")).sessions ?? []).map(toSession);
-
-export const revokeSession = (id: string) =>
-  api<void>(`/api/v1/sessions/${id}`, { method: "DELETE" });
 
 export const listAuthKeys = async (): Promise<AuthKey[]> =>
   (await api<{ authKeys: AuthKey[] | null }>("/api/v1/auth-keys")).authKeys ?? [];

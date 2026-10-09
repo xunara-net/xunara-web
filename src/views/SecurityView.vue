@@ -8,6 +8,7 @@ import { session } from "../store";
 import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
 import StatCard from "../components/StatCard.vue";
+import AccountPasskeys from "../components/AccountPasskeys.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authMethodLabel, revokedReasonLabel, securityFindingText, severityLabel, splitAccountSessions } from "../utils/security";
 
@@ -35,6 +36,7 @@ async function handleExpiredSession(err: unknown) {
 }
 
 async function loadSessions() {
+  // 读取失败独立显示错误；不能向用户宣称“没有活动登录”。
   loading.value = true;
   error.value = "";
   try {
@@ -96,6 +98,8 @@ async function revoke(target: AccountSession | "others" | "all") {
   <PageHeader title="安全中心" desc="管理控制台登录，查看网络安全提示。退出登录不会断开已连接的组网设备。">
     <template #actions><RouterLink class="btn" to="/settings">修改密码</RouterLink></template>
   </PageHeader>
+
+  <AccountPasskeys />
 
   <div class="card">
     <div class="card-head session-head">

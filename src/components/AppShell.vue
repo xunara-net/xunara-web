@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { session } from "../store";
+import { errorMessage } from "../api/client";
 
 // Navigation groups mirror the specification's console map (spec 93/94):
 // 我的账户 / 我的网络 / 接入 / 平台. Items that need a capability the plan
@@ -45,6 +46,7 @@ const groups = computed(() => [
 const route = useRoute();
 const router = useRouter();
 const menuOpen = ref(false);
+const signingOut = ref(false);
 
 const title = computed(() => (route.meta.title as string) ?? routeName(route.name?.toString() ?? ""));
 const initials = computed(() => {
@@ -74,8 +76,16 @@ function routeName(name: string): string {
 }
 
 async function signOut() {
-  await session.logout();
-  router.push({ name: "login" });
+  if (signingOut.value) return;
+  signingOut.value = true;
+  try {
+    await session.logout();
+    await router.replace({ name: "login", query: { signed_out: "current" } });
+  } catch (err) {
+    session.toast("error", errorMessage(err));
+  } finally {
+    signingOut.value = false;
+  }
 }
 </script>
 
@@ -119,7 +129,7 @@ async function signOut() {
             <button @click="$router.push('/settings')">个人设置</button>
             <button @click="$router.push('/security')">安全中心</button>
             <div class="sep" />
-            <button style="color: var(--danger)" @click="signOut">退出登录</button>
+            <button style="color: var(--danger)" :disabled="signingOut" @click="signOut">{{ signingOut ? '正在退出…' : '退出登录' }}</button>
           </div>
         </div>
       </header>

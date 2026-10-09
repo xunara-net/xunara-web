@@ -170,19 +170,6 @@ describe("control plane response contracts", () => {
     expect(await endpoints.getPlan()).toMatchObject({ unlimited: true, maxDevices: -1, networkPrefix: undefined });
   });
 
-  it("loads session-list IDs and timestamps from the identity API", async () => {
-    respond({ sessions: [{
-      ID: "session-alice", UserID: 1, AuthMethod: "local",
-      CreatedAt: "2026-10-09T00:00:00Z", ExpiresAt: "2026-10-10T00:00:00Z",
-      LastSeenAt: "2026-10-09T01:00:00Z", RevokedAt: "0001-01-01T00:00:00Z", RevokedReason: "",
-    }] });
-    expect(await endpoints.listSessions()).toEqual([{
-      id: "session-alice", authMethod: "local", createdAt: "2026-10-09T00:00:00Z",
-      expiresAt: "2026-10-10T00:00:00Z", lastSeenAt: "2026-10-09T01:00:00Z",
-      revokedAt: undefined, revokedReason: "",
-    }]);
-  });
-
   it("loads audit actions, targets and actors without blank table cells", async () => {
     respond({ events: [{ ID: 5, Time: "2026-10-09T01:00:00Z", Actor: "user:1", Action: "node.approved", Target: "node:2", Detail: "approved" }] });
     expect(await endpoints.listAudit()).toEqual([{
@@ -190,10 +177,8 @@ describe("control plane response contracts", () => {
     }]);
   });
 
-  it("accepts empty session and audit listings", async () => {
-    respond({ sessions: null });
+  it("accepts an empty audit listing", async () => {
     respond({ events: null });
-    expect(await endpoints.listSessions()).toEqual([]);
     expect(await endpoints.listAudit()).toEqual([]);
   });
 

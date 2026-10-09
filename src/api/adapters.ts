@@ -7,8 +7,6 @@ import type {
   AuditPayload,
   Plan,
   PlanPayload,
-  SessionInfo,
-  SessionPayload,
   Snapshot,
   SnapshotPayload,
   User,
@@ -16,6 +14,7 @@ import type {
 } from "./types";
 
 export function toAccountSessions(payload: AccountSessionsPayload): AccountSessions {
+  // 账户列表以服务端状态为准，不把读取失败或缺失字段转换成“没有登录”。
   return {
     currentSessionId: payload.current_session_id,
     csrfToken: payload.csrf_token,
@@ -100,22 +99,6 @@ export function toSnapshot(payload: SnapshotPayload): Snapshot {
       organizationName: payload.tenant.organization_name,
     },
     plan: payload.plan && toPlan(payload.plan),
-  };
-}
-
-function optionalTime(value: string): string | undefined {
-  return value && value !== "0001-01-01T00:00:00Z" ? value : undefined;
-}
-
-export function toSession(payload: SessionPayload): SessionInfo {
-  return {
-    id: payload.ID,
-    authMethod: payload.AuthMethod,
-    createdAt: payload.CreatedAt,
-    expiresAt: payload.ExpiresAt,
-    lastSeenAt: optionalTime(payload.LastSeenAt),
-    revokedAt: optionalTime(payload.RevokedAt),
-    revokedReason: payload.RevokedReason,
   };
 }
 

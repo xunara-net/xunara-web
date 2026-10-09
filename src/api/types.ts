@@ -184,14 +184,48 @@ export interface SnapshotPayload {
   plan?: PlanPayload;
 }
 
-export interface SessionPayload {
-  ID: string;
-  AuthMethod: string;
-  CreatedAt: string;
-  ExpiresAt: string;
-  LastSeenAt: string;
-  RevokedAt: string;
-  RevokedReason: string;
+export interface AccountPasskey {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at?: string;
+}
+
+export interface AccountPasskeys {
+  passkeys: AccountPasskey[];
+  enabled: boolean;
+  csrf_token: string;
+}
+
+// 上游 JSON 使用 base64url，浏览器 WebAuthn API 则接收二进制 BufferSource。
+// 只描述传输差异，不在前端重新实现签名或账户身份验证。
+type PasskeyDescriptorJSON = Omit<PublicKeyCredentialDescriptor, "id"> & { id: string };
+
+export type PasskeyCreationOptionsJSON = Omit<PublicKeyCredentialCreationOptions, "challenge" | "user" | "excludeCredentials"> & {
+  challenge: string;
+  user: Omit<PublicKeyCredentialUserEntity, "id"> & { id: string };
+  excludeCredentials?: PasskeyDescriptorJSON[];
+};
+
+export type PasskeyRequestOptionsJSON = Omit<PublicKeyCredentialRequestOptions, "challenge" | "allowCredentials"> & {
+  challenge: string;
+  allowCredentials?: PasskeyDescriptorJSON[];
+};
+
+export interface PasskeyCredentialJSON {
+  id: string;
+  rawId: string;
+  type: string;
+  authenticatorAttachment: string | null;
+  clientExtensionResults: AuthenticationExtensionsClientOutputs;
+  response: {
+    clientDataJSON: string;
+    attestationObject?: string;
+    transports?: string[];
+    authenticatorData?: string;
+    signature?: string;
+    userHandle?: string | null;
+  };
 }
 
 export interface AuditPayload {

@@ -1,11 +1,10 @@
-// Console state: the signed-in session, the tenant plan and a small toast
-// queue. It is a module-level reactive object rather than a store library —
-// the console has one session and one user, and a shared object is the whole
-// state management it needs.
+// 这里只保存 UI 快照，不存会话 Secret；实际身份、过期和撤销都以服务端数据库为准。
+// 顶部菜单、个人设置和安全中心共享此状态，不能各自维护一套“已退出”的假状态。
 
 import { reactive, readonly } from "vue";
 import * as endpoints from "./api/endpoints";
-import type { AccountInfo, Plan, ProfileUpdate, SessionInfo, Snapshot, User } from "./api/types";
+import { ApiError } from "./api/client";
+import type { AccountInfo, PasskeyCredentialJSON, Plan, ProfileUpdate, SessionInfo, Snapshot, User } from "./api/types";
 
 export interface Toast {
   id: number;
@@ -46,6 +45,10 @@ export const session = {
     apply(await endpoints.login(login, password));
   },
 
+  async loginWithPasskey(credential: PasskeyCredentialJSON): Promise<void> {
+    apply(await endpoints.finishPasskeyLogin(credential));
+  },
+
   async updateProfile(body: ProfileUpdate, csrfToken: string): Promise<AccountInfo> {
     const account = await endpoints.updateAccount(body, csrfToken);
     if (!state.authenticated || state.user?.id !== account.user.id) {
@@ -71,9 +74,21 @@ export const session = {
 
   async logout(): Promise<void> {
     try {
-      await endpoints.logout();
-    } finally {
+      const initiatingId = state.session?.id;
+      const account = await endpoints.getAccountSessions();
+      if (!initiatingId || initiatingId !== account.currentSessionId) {
+        throw new Error("当前会话已变更，请刷新页面后重试");
+      }
+      // 与安全中心共用事务型撤销。不能在 finally 中清空状态，掩盖持久撤销失败。
+      const result = await endpoints.revokeAccountSession(initiatingId, account.csrfToken);
+      if (!result.current_revoked) throw new Error("服务端尚未确认退出，请刷新页面后重试");
       apply({ authenticated: false });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        apply({ authenticated: false });
+        return;
+      }
+      throw err;
     }
   },
 
