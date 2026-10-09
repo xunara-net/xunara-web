@@ -4,6 +4,8 @@
 import { api } from "./client";
 import type {
   ApiKey,
+  ProvidersPayload,
+  TenantSignupResult,
   AuditEvent,
   AuthKey,
   DERPInfo,
@@ -24,14 +26,23 @@ import type {
 
 export const getSession = () => api<Snapshot>("/api/v1/auth/session");
 
-export const getProviders = () =>
-  api<{
-    providers: { id: string; name: string; start_url: string }[];
-    local_login: boolean;
-    setup_required: boolean;
-    passkeys: boolean;
-    registration: string;
-  }>("/api/v1/auth/providers");
+export const getProviders = () => api<ProvidersPayload>("/api/v1/auth/providers");
+
+/**
+ * signupTenant creates a whole tenant through a deployment's sign-up desk.
+ *
+ * The endpoint comes from the providers payload, so a deployment that hosts
+ * self-service decides where this goes; the console never guesses.
+ */
+export const signupTenant = (
+  endpoint: string,
+  body: {
+    login: string;
+    display_name: string;
+    email: string;
+    password: string;
+  },
+) => api<TenantSignupResult>(endpoint, { method: "POST", body });
 
 export const login = (login: string, password: string) =>
   api<Snapshot>("/api/v1/auth/login", { method: "POST", body: { login, password } });

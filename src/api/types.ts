@@ -170,3 +170,29 @@ export interface DERPInfo {
   configured?: boolean;
   [key: string]: unknown;
 }
+
+/** Self-service sign-up: where a deployment creates a tenant per account. */
+export interface SelfServiceInfo {
+  endpoint: string;
+  domain_suffix?: string;
+  plan?: string;
+}
+
+/** What this deployment offers before anybody has signed in. */
+export interface ProvidersPayload {
+  providers: { id: string; name: string; start_url: string }[];
+  local_login: boolean;
+  setup_required: boolean;
+  passkeys: boolean;
+  /** closed | invite | open */
+  registration: string;
+  self_service?: SelfServiceInfo;
+}
+
+/** The tenant a self-service sign-up just created. */
+export interface TenantSignupResult {
+  authenticated: boolean;
+  organization: { id: string; name: string; domain: string; url: string };
+  handoff: boolean;
+  user: { login_name: string; display_name: string; role: string };
+}

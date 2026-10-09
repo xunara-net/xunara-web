@@ -12,6 +12,7 @@ const capabilityLabels: Record<string, string> = {
   "auth.passkey": "Passkey 登录",
   "auth.oidc": "第三方登录（OIDC）",
   "auth.register.invite": "邀请制注册",
+  "auth.register.open": "开放注册",
   "identity.id_token": "身份令牌（ID Token）",
   sharing: "跨组织共享",
   webhooks: "Webhook",

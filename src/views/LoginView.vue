@@ -14,12 +14,14 @@ const busy = ref(false);
 const error = ref("");
 const providers = ref<{ id: string; name: string; start_url: string }[]>([]);
 const setupRequired = ref(false);
+const registration = ref("closed");
 
 onMounted(async () => {
   try {
     const info = await ep.getProviders();
     providers.value = info.providers;
     setupRequired.value = info.setup_required;
+    registration.value = info.registration;
     if (info.setup_required) error.value = "服务尚未初始化，请先由管理员在服务端完成初始化。";
   } catch (err) {
     error.value = errorMessage(err);
@@ -80,7 +82,8 @@ async function submit() {
       </template>
 
       <div class="auth-footer">
-        <router-link to="/register">使用邀请码注册</router-link>
+        <router-link v-if="registration === 'invite'" to="/register">使用邀请码注册</router-link>
+        <router-link v-else-if="registration === 'open'" to="/register">免费创建账户</router-link>
         <a href="https://github.com/xunara-net/xunara-docs" target="_blank" rel="noreferrer">帮助文档</a>
       </div>
     </div>
