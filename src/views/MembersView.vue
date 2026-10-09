@@ -6,6 +6,7 @@ import type { User } from "../api/types";
 import { session } from "../store";
 import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
+import MemberInvitations from "../components/MemberInvitations.vue";
 import { formatTime, roleLabel } from "../utils/format";
 import { canManageMemberRoles, isLastOwner } from "../utils/members";
 
@@ -64,7 +65,7 @@ async function changeRole(user: User, event: Event) {
   <div v-if="!error" class="card">
     <div class="card-head">
       <h2>成员（{{ loading ? "…" : users.length }}）</h2>
-      <span class="hint">角色决定平台权限：所有者 &gt; 管理员 &gt; 成员 &gt; 只读</span>
+      <span class="hint">角色决定平台权限：所有者 &gt; 管理员 &gt; 成员</span>
     </div>
     <DataTable :columns="[
       { key: 'displayName', title: '成员' },
@@ -91,10 +92,10 @@ async function changeRole(user: User, event: Event) {
           <option value="owner">所有者</option>
           <option value="admin">管理员</option>
           <option value="member">成员</option>
-          <option value="viewer">只读</option>
         </select>
         <span v-else class="badge">{{ roleLabel(row.role) }}</span>
       </template>
     </DataTable>
   </div>
+  <MemberInvitations v-if="canWrite()" @changed="load" />
 </template>

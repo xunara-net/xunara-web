@@ -190,4 +190,26 @@ describe("control plane response contracts", () => {
     expect(await endpoints.listMachines()).toEqual([machine]);
     expect(await endpoints.listUsers()).toEqual([user]);
   });
+
+  it("loads owner invitations without inventing a missing registration policy", async () => {
+    respond({ items: [], enabled: true, registration_url: "/register", csrf_token: "fixture-csrf" });
+    expect(await endpoints.getMemberInvitations()).toMatchObject({ items: [], enabled: true, csrf_token: "fixture-csrf" });
+    respond({ items: [], registration_url: "/register", csrf_token: "fixture-csrf" });
+    await expect(endpoints.getMemberInvitations()).rejects.toThrow("邀请数据格式异常");
+  });
+
+  it("invitation changes send the session-bound CSRF header and never put codes in URLs", async () => {
+    const invitation = { id: "inv-fixture", role: "member", status: "pending" };
+    respond({ invitation, code: "fixture-invitation-code" });
+    expect(await endpoints.createMemberInvitation({ role: "member", note: "同事", ttl_hours: 24 }, "fixture-csrf")).toMatchObject({ code: "fixture-invitation-code" });
+    const creation = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(new URL(String(creation[0])).pathname).toBe("/api/v1/member-invitations");
+    expect(new URL(String(creation[0])).search).toBe("");
+    expect(creation[1]).toMatchObject({ method: "POST", headers: { "X-CSRF-Token": "fixture-csrf" } });
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await endpoints.revokeMemberInvitation("inv/fixture", "fixture-csrf");
+    const revocation = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(new URL(String(revocation[0])).pathname).toBe("/api/v1/member-invitations/inv%2Ffixture");
+    expect(revocation[1]).toMatchObject({ method: "DELETE", headers: { "X-CSRF-Token": "fixture-csrf" } });
+  });
 });

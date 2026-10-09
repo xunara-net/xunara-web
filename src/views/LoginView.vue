@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
 import { session } from "../store";
 import { getPasskey, passkeyAvailability, passkeyErrorMessage } from "../utils/passkey";
-import { loginDestination } from "../utils/auth";
+import { legacyProviderLoginURL, loginDestination, providerLoginURL } from "../utils/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -15,6 +15,9 @@ const password = ref("");
 const busy = ref("");
 const error = ref("");
 const providers = ref<{ id: string; name: string; start_url: string }[]>([]);
+const providerLinks = computed(() => providers.value.map((provider) => ({
+  ...provider, url: providerLoginURL(provider.start_url, route.query.return_to, provider.id),
+})));
 const setupRequired = ref(false);
 const registration = ref("closed");
 const localLogin = ref(true);
@@ -32,6 +35,11 @@ onMounted(async () => {
     localLogin.value = info.local_login;
     passkeys.value = info.passkeys;
     if (info.setup_required) error.value = "服务尚未初始化，请先由管理员在服务端完成初始化。";
+    else {
+      // 旧第三方书签经过同一受限 API 入口，不能重新引入 /login 的后端/SPA 双实现。
+      const legacyStart = legacyProviderLoginURL(info.providers, route.query.provider, route.query.return_to);
+      if (legacyStart) window.location.assign(legacyStart);
+    }
   } catch (err) {
     error.value = errorMessage(err);
   }
@@ -122,7 +130,7 @@ async function afterLogin() {
           或使用第三方账号
           <div style="flex: 1; height: 1px; background: var(--border)" />
         </div>
-        <a v-for="provider in providers" :key="provider.id" class="btn" style="width: 100%; margin-bottom: 10px" :href="provider.start_url">
+        <a v-for="provider in providerLinks" :key="provider.id" class="btn" style="width: 100%; margin-bottom: 10px" :href="provider.url ?? undefined" :aria-disabled="!provider.url || !!busy">
           使用 {{ provider.name }} 登录
         </a>
       </template>

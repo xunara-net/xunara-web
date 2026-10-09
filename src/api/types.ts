@@ -354,6 +354,30 @@ export interface DERPInfo {
   [key: string]: unknown;
 }
 
+export interface MemberInvitation {
+  id: string;
+  role: "member" | "admin";
+  note: string;
+  created_at: string;
+  expires_at: string;
+  used_at: string;
+  used_by: number;
+  status: "pending" | "redeemed" | "expired";
+}
+
+export interface MemberInvitations {
+  items: MemberInvitation[];
+  enabled: boolean;
+  registration_url: string;
+  csrf_token: string;
+}
+
+export interface MemberInvitationRequest {
+  role: "member" | "admin";
+  note: string;
+  ttl_hours: number;
+}
+
 /** Self-service sign-up: where a deployment creates a tenant per account. */
 export interface SelfServiceInfo {
   endpoint: string;

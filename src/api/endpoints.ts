@@ -17,6 +17,9 @@ import type {
   DERPInfo,
   DNSRecord,
   Machine,
+  MemberInvitation,
+  MemberInvitationRequest,
+  MemberInvitations,
   Organization,
   Overview,
   PendingDevice,
@@ -79,6 +82,25 @@ export const finishPasskeyLogin = async (credential: PasskeyCredentialJSON) =>
 export const getOverview = () => api<Overview>("/api/v1/overview");
 export const getPlan = async () => toPlan(await api<PlanPayload>("/api/v1/plan"));
 export const getOrganization = () => api<Organization>("/api/v2/organization");
+
+export const getMemberInvitations = async () => {
+  const payload = await api<MemberInvitations>("/api/v1/member-invitations");
+  const items = requiredList<MemberInvitation>(payload, "items");
+  if (typeof payload.enabled !== "boolean" || !payload.csrf_token || payload.registration_url !== "/register") {
+    throw new Error("服务返回的邀请数据格式异常，请刷新重试");
+  }
+  return { ...payload, items };
+};
+
+export const createMemberInvitation = (body: MemberInvitationRequest, csrfToken: string) =>
+  api<{ invitation: MemberInvitation; code: string }>("/api/v1/member-invitations", {
+    method: "POST", body, headers: { "X-CSRF-Token": csrfToken },
+  });
+
+export const revokeMemberInvitation = (id: string, csrfToken: string) =>
+  api<void>(`/api/v1/member-invitations/${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: { "X-CSRF-Token": csrfToken },
+  });
 
 // ---- devices --------------------------------------------------------------
 
