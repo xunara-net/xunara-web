@@ -189,5 +189,7 @@ async function savePassword() {
 </template>
 
 <style scoped>
+.grid { margin-bottom: 16px; }
+.grid > .card { margin-top: 0; }
 .account-login { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 </style>
