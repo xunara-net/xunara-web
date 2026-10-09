@@ -100,7 +100,7 @@ async function afterLogin() {
       <form v-if="localLogin" style="margin-top: 20px" @submit.prevent="submit">
         <div class="field">
           <label for="login">登录名</label>
-          <input id="login" v-model="login" class="input" autocomplete="username" placeholder="邮箱或用户名" />
+          <input id="login" v-model="login" class="input" autocomplete="username" placeholder="请输入注册时的登录名" />
         </div>
         <div class="field">
           <label for="password">密码</label>
