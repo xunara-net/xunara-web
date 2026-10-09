@@ -27,7 +27,7 @@ import type {
   PasskeyCredentialJSON,
   PlanPayload,
   ProfileUpdate,
-  RelayInfo,
+  ManagedRelay,
   Route,
   SessionRevocationResult,
   SecuritySnapshot,
@@ -107,8 +107,18 @@ export const denyDevice = (id: string) =>
 
 // ---- network --------------------------------------------------------------
 
+function requiredList<Value>(payload: unknown, field: string): Value[] {
+  if (!payload || typeof payload !== "object" || !(field in payload)) {
+    throw new Error("服务返回的数据格式异常，请刷新重试");
+  }
+  const value = (payload as Record<string, unknown>)[field];
+  if (value === null) return [];
+  if (!Array.isArray(value)) throw new Error("服务返回的数据格式异常，请刷新重试");
+  return value as Value[];
+}
+
 export const listRoutes = async (): Promise<Route[]> =>
-  (await api<{ routes: Route[] | null }>("/api/v1/routes")).routes ?? [];
+  requiredList(await api<unknown>("/api/v1/routes"), "routes");
 
 export const listDNS = async (): Promise<DNSRecord[]> =>
   (await api<{ records: DNSRecord[] | null }>("/api/v1/dns")).records ?? [];
@@ -125,12 +135,27 @@ export const getPolicy = () =>
     loadError?: string;
   }>("/api/v1/policy");
 
-export const getDERP = () => api<DERPInfo>("/api/v2/derp");
+export const getDERP = async (): Promise<DERPInfo> => {
+  const payload = await api<DERPInfo>("/api/v2/derp");
+  if (!payload || typeof payload.mapConfigured !== "boolean" ||
+    !Number.isSafeInteger(payload.regionsServed) || payload.regionsServed < 0) {
+    throw new Error("服务返回的中继配置格式异常，请刷新重试");
+  }
+  return payload;
+};
 
-export const listRelays = async (): Promise<RelayInfo[]> =>
-  (await api<{ relays: RelayInfo[] | null }>("/api/v2/relays")).relays ?? [];
+export const listManagedRelays = async (): Promise<ManagedRelay[]> => {
+  // /relays 是客户端 Peer Relay 策略；托管 DERP 必须读取 /relays/enrolled，不能混为一谈。
+  const items = requiredList<ManagedRelay>(await api<unknown>("/api/v2/relays/enrolled"), "items");
+  if (items.some((relay) => !relay || typeof relay.id !== "string" || !relay.id ||
+    typeof relay.online !== "boolean" || typeof relay.healthy !== "boolean" || typeof relay.desiredState !== "string")) {
+    throw new Error("服务返回的托管中继格式异常，请刷新重试");
+  }
+  return items;
+};
 
-export const listExitNodes = () => api<{ exitNodes?: unknown[] }>("/api/v2/exit-nodes");
+export const listExitNodes = async (): Promise<unknown[]> =>
+  requiredList(await api<unknown>("/api/v2/exit-nodes"), "exitNodes");
 
 // ---- account --------------------------------------------------------------
 
@@ -178,7 +203,7 @@ export const deleteAccountPasskey = (id: string, csrfToken: string) =>
   });
 
 export const listUsers = async (): Promise<User[]> =>
-  (await api<{ users: User[] | null }>("/api/v1/users")).users ?? [];
+  requiredList(await api<unknown>("/api/v1/users"), "users");
 
 export const updateUser = (
   id: number,

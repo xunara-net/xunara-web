@@ -336,16 +336,21 @@ export interface Organization {
   [key: string]: unknown;
 }
 
-export interface RelayInfo {
-  id?: string;
-  name?: string;
-  region?: string;
-  status?: string;
-  [key: string]: unknown;
+export interface ManagedRelay {
+  id: string;
+  name: string;
+  hostname: string;
+  regionCode?: string;
+  regionName?: string;
+  desiredState: string;
+  online: boolean;
+  healthy: boolean;
+  lastSeen?: string;
 }
 
 export interface DERPInfo {
-  configured?: boolean;
+  mapConfigured: boolean;
+  regionsServed: number;
   [key: string]: unknown;
 }
 
