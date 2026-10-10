@@ -82,7 +82,7 @@ async function copy(text: string, label: string) {
   <div class="grid cols-4">
     <StatCard label="设备总数" :value="overview?.machines.total ?? '—'" :sub="`在线 ${overview?.machines.online ?? 0} 台`" />
     <StatCard label="待审批设备" :value="pending.length" :tone="pending.length ? 'warning' : 'default'" sub="需要在设备页批准" />
-    <StatCard label="网络地址" :value="plan?.networkPrefix ?? '—'" sub="设备从该网段分配地址" />
+    <StatCard label="网络地址" :value="plan?.networkPrefix ?? '—'" sub="新设备从该网段分配地址" />
     <StatCard
       label="套餐用量"
       :value="plan ? `${plan.devicesUsed} / ${quotaText(plan.maxDevices)}` : '—'"
@@ -138,7 +138,8 @@ async function copy(text: string, label: string) {
         <span :style="`width: ${usedPercent ?? 4}%`" />
       </div>
       <div v-if="plan.networkPrefix" style="margin-top: 14px; color: var(--text-muted); font-size: 12.5px">
-        网络地址 {{ plan.networkPrefix }} 由系统分配<template v-if="!plan.allowCustomCidr">；当前套餐不可自定义网段</template>。
+        当前设备分配网段 {{ plan.networkPrefix }}<template v-if="!plan.allowCustomCidr">；当前套餐不可自定义网段</template>。
+        <router-link to="/network">{{ plan.allowCustomCidr ? "管理自定义网段 →" : "查看网络网段 →" }}</router-link>
       </div>
     </div>
   </div>

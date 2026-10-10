@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 
 // 此模块仅操作兄弟仓库启动的 localhost 临时租户，禁止用生产凭据做写入验收。
-async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade }) {
+async function runAddressRelaySmoke({ page, memberPage, origin, mark, assignPlan }) {
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(origin).hostname));
   const request = page.context().request;
   async function read(endpoint) { const response = await request.get(origin + endpoint); assert.equal(response.status(), 200); return response.json(); }
@@ -69,8 +69,17 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade })
   assert.equal(Object.keys((await read('/api/v2/derp/configuration')).map.Regions).length, 0);
   assert.ok((await read('/api/v2/derp')).regions.some((region) => region.id === 990));
 
+  mark('allocation-entitlement-keeps-entry-visible-without-enabling-writes');
+  await assignPlan('free');
+  assert.equal((await read('/api/v2/network/addresses')).can_edit, false);
+  await page.goto(origin + '/network');
+  await page.getByRole('status').getByText('当前套餐未开通自定义网段，请联系平台管理员调整套餐权限。', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '修改分配网段', exact: true }).isDisabled(), true);
+  await page.getByRole('link', { name: '查看套餐权限 →', exact: true }).waitFor();
+  await page.getByRole('link', { name: '配置子网路由 →', exact: true }).waitFor();
+
   mark('tenant-custom-cidr-preview-confirmation-and-old-device-preservation');
-  await upgrade();
+  await assignPlan('pro');
   const before = await read('/api/v2/network/addresses');
   const machine = await read('/api/v1/machines/smoke-1');
   await page.route('**/api/v2/network/addresses', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '地址读取失败（验收注入）' }) }));
@@ -78,7 +87,7 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade })
   await page.getByRole('alert').getByText('地址配置读取失败：地址读取失败（验收注入）', { exact: true }).waitFor();
   await page.getByText('网段权限暂未确认', { exact: true }).waitFor();
   assert.equal(await page.getByText('系统自动分配，当前套餐不允许自定义网段', { exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: '修改分配网段', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '修改分配网段', exact: true }).isDisabled(), true);
   await page.unroute('**/api/v2/network/addresses');
   await page.getByRole('button', { name: '刷新', exact: true }).click();
   await page.getByRole('button', { name: '修改分配网段', exact: true }).click();
@@ -92,6 +101,24 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade })
   const saved = await read('/api/v2/network/addresses');
   assert.equal(saved.ipv4_cidr, '100.101.50.0/24'); assert.equal(saved.pending, false);
   assert.equal((await read('/api/v1/machines/smoke-1')).ipv4, machine.ipv4);
+
+  mark('saved-allocation-refreshes-plan-and-dashboard-without-page-reload');
+  assert.equal((await read('/api/v1/auth/session')).plan.network_prefix, saved.ipv4_cidr);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('link', { name: '套餐与用量', exact: true }).click();
+  await page.getByRole('heading', { name: '套餐与用量', exact: true }).waitFor();
+  await page.getByText(saved.ipv4_cidr, { exact: true }).waitFor();
+  await page.getByRole('link', { name: '管理网络网段 →', exact: true }).waitFor();
+  await page.getByRole('link', { name: '控制台首页', exact: true }).click();
+  await page.getByRole('heading', { name: '控制台首页', exact: true }).waitFor();
+  await page.getByText(saved.ipv4_cidr, { exact: true }).waitFor();
+  await page.getByRole('link', { name: '管理自定义网段 →', exact: true }).click();
+  await page.getByRole('button', { name: '修改分配网段', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '修改设备分配网段', exact: true });
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  for (const width of [320, 390, 768]) { await page.setViewportSize({ width, height: 844 }); await noOverflow(); }
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   mark('device-ip-cas-retains-draft-and-applies-only-explicit-confirmed-address');
   await page.goto(origin + '/devices/' + machine.id);
@@ -114,7 +141,8 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade })
 
   mark('member-cannot-edit-allocation-ip-or-external-map-but-can-download');
   await memberPage.goto(origin + '/network'); await memberPage.getByRole('heading', { name: '网络基本信息', exact: true }).waitFor();
-  assert.equal(await memberPage.getByRole('button', { name: '修改分配网段', exact: true }).count(), 0);
+  assert.equal(await memberPage.getByRole('button', { name: '修改分配网段', exact: true }).isDisabled(), true);
+  await memberPage.getByRole('status').getByText('只有网络所有者或管理员可以修改网段，请联系网络管理员。', { exact: true }).waitFor();
   await memberPage.goto(origin + '/devices/' + machine.id); await memberPage.getByRole('heading', { name: '基本信息', exact: true }).waitFor();
   assert.equal(await memberPage.getByRole('button', { name: '修改 IPv4', exact: true }).count(), 0);
   await memberPage.goto(origin + '/relays');

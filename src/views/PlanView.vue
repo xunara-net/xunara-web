@@ -56,6 +56,7 @@ const usage = computed(() => {
         <div class="label">网络地址</div>
         <div class="value mono" style="font-size: 20px">{{ plan.networkPrefix ?? "—" }}</div>
         <div class="sub">{{ plan.allowCustomCidr ? "可自定义" : "系统自动分配" }}</div>
+        <router-link to="/network" class="small-text">管理网络网段 →</router-link>
       </div>
     </div>
 
