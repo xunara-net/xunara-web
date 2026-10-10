@@ -22,10 +22,10 @@ export function useDialogFocus(open: Readonly<Ref<boolean>>, element: Ref<HTMLEl
     if (!first) {
       event.preventDefault();
       element.value?.focus();
-    } else if (event.shiftKey && (document.activeElement === first || !element.value?.contains(document.activeElement))) {
+    } else if (event.shiftKey && (document.activeElement === element.value || document.activeElement === first || !element.value?.contains(document.activeElement))) {
       event.preventDefault();
       last?.focus();
-    } else if (!event.shiftKey && (document.activeElement === last || !element.value?.contains(document.activeElement))) {
+    } else if (!event.shiftKey && (document.activeElement === element.value || document.activeElement === last || !element.value?.contains(document.activeElement))) {
       event.preventDefault();
       first.focus();
     }

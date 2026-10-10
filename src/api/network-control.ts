@@ -1,6 +1,6 @@
 import { api } from "./client";
 import type { ManagedRelay } from "./types";
-import type { AddressRecord, DNSConfiguration, DNSSettings, PolicyConfiguration, PolicyDraft, PolicyExplanation, PolicyHistory, PolicyProbe, PolicyValidation, RelayEnrollment, RelayPool } from "./network-types";
+import type { AddressRecord, DNSConfiguration, DNSSettings, PolicyConfiguration, PolicyDraft, PolicyExplanation, PolicyHistory, PolicyProbe, PolicyValidation, RelayEnrollment, RelayPool, RelayConfigurationHistory, RelayConfigurationChange } from "./network-types";
 
 function object(value: unknown): value is Record<string, unknown> { return Boolean(value && typeof value === "object" && !Array.isArray(value)); }
 function revision(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 0; }
@@ -84,9 +84,19 @@ export async function createRelayEnrollment(name: string, ttlSeconds: number, cs
   return payload;
 }
 export const revokeRelayEnrollment = (id: string, csrfToken: string) => api<void>(`/api/v2/relays/enroll-tokens/${encodeURIComponent(id)}`, { method: "DELETE", headers: { "X-CSRF-Token": csrfToken } });
-export async function updateManagedRelay(id: string, body: { desired_state: string; bandwidth_limit: number; region_name: string }, csrfToken: string) {
-  const payload = await api<ManagedRelay>(`/api/v2/relays/${encodeURIComponent(id)}`, { method: "PATCH", body, headers: { "X-CSRF-Token": csrfToken } });
-  requireContract(managedRelay(payload));
+export async function getManagedRelay(id: string) {
+  const payload = await api<ManagedRelay>(`/api/v2/relays/${encodeURIComponent(id)}`);
+  requireContract(managedRelay(payload) && payload.id === id);
   return payload;
 }
-export const deleteManagedRelay = (id: string, csrfToken: string) => api<void>(`/api/v2/relays/${encodeURIComponent(id)}`, { method: "DELETE", headers: { "X-CSRF-Token": csrfToken } });
+export async function listRelayConfigurationHistory(id: string) {
+  const items = requireItems<RelayConfigurationHistory>(await api<unknown>(`/api/v2/relays/${encodeURIComponent(id)}/history`), (item) => object(item) && revision(item.config_version) && item.config_version > 0 && ["online", "maintenance", "disabled", "revoked"].includes(String(item.desired_state)) && Number.isSafeInteger(item.bandwidth_limit) && Number(item.bandwidth_limit) >= -1 && typeof item.region_name === "string" && typeof item.actor === "string" && typeof item.created === "string" && Number.isFinite(Date.parse(item.created)));
+  requireContract(items.length <= 50 && items.every((item, index) => index === 0 || item.config_version < items[index - 1]!.config_version));
+  return items;
+}
+export async function updateManagedRelay(id: string, body: RelayConfigurationChange, csrfToken: string) {
+  const payload = await api<ManagedRelay>(`/api/v2/relays/${encodeURIComponent(id)}`, { method: "PATCH", body, headers: { "X-CSRF-Token": csrfToken } });
+  requireContract(managedRelay(payload) && payload.id === id && payload.configVersion === body.config_version + 1);
+  return payload;
+}
+export const deleteManagedRelay = (relay: ManagedRelay, csrfToken: string) => api<void>(`/api/v2/relays/${encodeURIComponent(relay.id)}`, { method: "DELETE", headers: { "X-CSRF-Token": csrfToken, "If-Match": String(relay.configVersion) } });

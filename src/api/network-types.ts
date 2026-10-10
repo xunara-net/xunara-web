@@ -109,3 +109,17 @@ export interface RelayPool {
   csrf_token: string;
   control_url: string;
 }
+
+export interface RelayConfigurationHistory {
+  config_version: number;
+  desired_state: string;
+  bandwidth_limit: number;
+  region_name: string;
+  actor: string;
+  created: string;
+}
+
+export type RelayConfigurationChange = { config_version: number } & (
+  { desired_state: string; bandwidth_limit: number; region_name: string; restore_from?: never } |
+  { restore_from: number; desired_state?: never; bandwidth_limit?: never; region_name?: never }
+);
