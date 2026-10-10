@@ -371,7 +371,7 @@ export interface DERPInfo {
   mapConfigured: boolean;
   regionsServed: number;
   policyMode: string;
-  regions: { id: number; code: string; name: string; hosts: string[]; nodeCount: number }[];
+  regions: { id: number; code: string; name: string; hosts: string[]; nodeCount: number; source?: "deployment" | "external" | "managed"; nodes?: import("./external-relays").DERPNode[] }[];
   [key: string]: unknown;
 }
 

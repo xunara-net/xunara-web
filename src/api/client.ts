@@ -90,6 +90,12 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  ADDRESS_CHANGED: "网段或设备 IP 已被其他管理员修改，请关闭并刷新后重新操作",
+  ADDRESS_IN_USE: "该 IP 或网段已被占用，旧网段仍可能被其他设备使用",
+  ADDRESS_INVALID: "地址无效，请检查当前网段、系统保留段与地址格式",
+  DERP_MAP_INVALID: "中继地图格式无效，请检查地区编号、主机、端口和 TLS 校验",
+  DERP_REGION_CONFLICT: "地区编号与默认或已接入中继冲突，请选择其它编号",
+  DERP_IMPORT_FAILED: "暂时无法读取官方公共地图，原有中继配置未改变",
   REQUEST_TIMEOUT: "请求超时，尚未确认操作结果；请先刷新检查，勿连续重复提交",
   API_RESPONSE_INVALID: "服务响应格式异常，请刷新重试",
   AUTH_UNAVAILABLE: "登录服务暂时不可用，当前会话未被退出，请稍后重试",

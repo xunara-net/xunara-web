@@ -30,6 +30,7 @@ async function runRelayHistorySmoke({ userPage, adminPage, origin, api, platform
   // 这里只验收服务自报的 UI 契约；真实执行和 TLS 数据面由 Relay 的 Go 集成测试验证。
   mark('relay-execution-ui-unknown-and-fixed-failure-report');
   await userPage.goto(origin + '/relays');
+  await userPage.getByRole('navigation', { name: '中继功能' }).getByRole('button', { name: '私有中继', exact: true }).click();
   await userPage.getByText('执行状态未知', { exact: true }).waitFor();
   await adminPage.goto(origin + '/admin/relays');
   await adminPage.getByText('执行状态未知', { exact: true }).waitFor();
@@ -41,6 +42,7 @@ async function runRelayHistorySmoke({ userPage, adminPage, origin, api, platform
   assert.equal(response.status, 200);
   for (const page of [userPage, adminPage]) {
     await page.reload();
+    if (page === userPage) await page.getByRole('navigation', { name: '中继功能' }).getByRole('button', { name: '私有中继', exact: true }).click();
     await page.getByText('中继上报执行失败', { exact: true }).waitFor();
     await page.getByText('配置缓存写入失败', { exact: false }).waitFor();
   }
@@ -51,12 +53,14 @@ async function runRelayHistorySmoke({ userPage, adminPage, origin, api, platform
   assert.equal(response.status, 200);
   for (const page of [userPage, adminPage]) {
     await page.reload();
+    if (page === userPage) await page.getByRole('navigation', { name: '中继功能' }).getByRole('button', { name: '私有中继', exact: true }).click();
     await page.getByText('中继上报已应用 v2', { exact: true }).waitFor();
     await page.getByText('不替代端到端验证', { exact: false }).waitFor();
   }
 
   mark('relay-cross-surface-cas-preserves-draft-and-requires-explicit-new-baseline');
   await userPage.goto(origin + '/relays');
+  await userPage.getByRole('navigation', { name: '中继功能' }).getByRole('button', { name: '私有中继', exact: true }).click();
   await userPage.getByRole('button', { name: '管理', exact: true }).click();
   let dialog = userPage.getByRole('dialog', { name: '管理中继', exact: true });
   await dialog.getByLabel('中继地区名称', { exact: true }).fill('保留的中继草稿');

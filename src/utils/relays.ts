@@ -28,5 +28,5 @@ export function relayInstallCommand(controlURL: string): string {
   const url = new URL(controlURL);
   if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("请使用不含密钥的租户控制面根地址");
   const quotedURL = `'${url.origin.replace(/'/g, "'\\''")}'`;
-  return `read -r -s -p '请输入一次性接入令牌: ' XUNARA_RELAY_TOKEN; printf '\\n'\nexport XUNARA_RELAY_TOKEN\nxunara-relay -control-url ${quotedURL} -enroll-token-env XUNARA_RELAY_TOKEN -state-dir ./relay-state -hostname YOUR_RELAY_IP -listen :443 -cert-mode selfsigned -region-id 40001 -region-code private -region-name '私有中继' -visibility private\nunset XUNARA_RELAY_TOKEN`;
+  return `read -r -s -p '请输入一次性接入令牌: ' XUNARA_RELAY_TOKEN; printf '\\n'\nexport XUNARA_RELAY_TOKEN\nxunara-relay -control-url ${quotedURL} -enroll-token-env XUNARA_RELAY_TOKEN -state-dir ./relay-state -hostname YOUR_RELAY_IP -listen :443 -cert-mode selfsigned -region-id 40001 -region-code private -region-name '私有中继' -relay-visibility private\nunset XUNARA_RELAY_TOKEN`;
 }
