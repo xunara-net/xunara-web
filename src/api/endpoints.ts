@@ -215,7 +215,7 @@ export const listUsers = async (): Promise<User[]> =>
 
 export const updateUser = (
   id: number,
-  body: { role?: string; displayName?: string; email?: string },
+  body: { role?: string; displayName?: string; email?: string; expectedUpdatedAt?: string },
 ) => api<User>(`/api/v1/users/${id}`, { method: "PATCH", body });
 
 export const listAuthKeys = async (): Promise<AuthKey[]> =>

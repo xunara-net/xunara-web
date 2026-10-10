@@ -67,6 +67,12 @@ function respond(body: unknown) {
 }
 
 describe("control plane response contracts", () => {
+  it("sends a member's unchanged nanosecond version with the role patch", async () => {
+    const expectedUpdatedAt = "2026-10-11T00:00:00.123456789Z";
+    respond({ id: 2, role: "admin", updatedAt: "2026-10-11T00:00:01.987654321Z" });
+    await endpoints.updateUser(2, { role: "admin", expectedUpdatedAt });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ role: "admin", expectedUpdatedAt });
+  });
   it("sends the backend's route delta rather than an unsupported routes field", async () => {
     const updated = { id: 2, approvedRoutes: ["10.1.0.0/24"] };
     respond(updated);

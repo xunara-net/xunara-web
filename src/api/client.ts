@@ -90,6 +90,13 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  MEMBER_CHANGED: "成员信息已被其他管理员修改，请刷新列表后重新确认，不会自动覆盖",
+  LAST_OWNER: "至少保留一名网络所有者，请先授予另一名成员所有者角色",
+  MEMBER_WRITE_FORBIDDEN: "当前所有者或服务密钥权限已变化，请重新确认登录身份",
+  MEMBER_INVALID: "成员角色或数据版本无效，请刷新并检查输入",
+  MEMBER_NOT_FOUND: "成员已不存在，请刷新列表",
+  MEMBERS_UNAVAILABLE: "暂时无法读取或修改成员，请稍后刷新检查操作结果",
+  LOGIN_NAME_TAKEN: "此登录名已被使用，请选择其他名称",
   ADDRESS_CHANGED: "网段或设备 IP 已被其他管理员修改，请关闭并刷新后重新操作",
   ADDRESS_IN_USE: "该 IP 或网段已被占用，旧网段仍可能被其他设备使用",
   ADDRESS_INVALID: "地址无效，请检查当前网段、系统保留段与地址格式",
