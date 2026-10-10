@@ -23,6 +23,14 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade })
 
   mark('external-relay-manual-publication-survives-reload-without-managed-identity');
   await feature('非托管中继');
+  await page.getByRole('heading', { name: '非托管 / 公共中继', exact: true }).waitFor();
+  await page.route('**/api/v2/derp/configuration', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '外部地图读取失败（验收注入）' }) }));
+  await page.getByRole('button', { name: '刷新配置', exact: true }).click();
+  await page.getByRole('alert').getByText('外部地图读取失败（验收注入）', { exact: true }).waitFor();
+  assert.equal(await page.getByText('尚未添加外部中继', { exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '添加或导入公共中继', exact: true }).count(), 0);
+  await page.unroute('**/api/v2/derp/configuration');
+  await page.getByRole('button', { name: '刷新配置', exact: true }).click();
   await page.getByRole('button', { name: '添加或导入公共中继', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: '编辑非托管中继地图', exact: true });
   await dialog.getByText('手动添加一个中继', { exact: true }).click();
@@ -65,7 +73,14 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, upgrade })
   await upgrade();
   const before = await read('/api/v2/network/addresses');
   const machine = await read('/api/v1/machines/smoke-1');
+  await page.route('**/api/v2/network/addresses', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '地址读取失败（验收注入）' }) }));
   await page.goto(origin + '/network');
+  await page.getByRole('alert').getByText('地址配置读取失败：地址读取失败（验收注入）', { exact: true }).waitFor();
+  await page.getByText('网段权限暂未确认', { exact: true }).waitFor();
+  assert.equal(await page.getByText('系统自动分配，当前套餐不允许自定义网段', { exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '修改分配网段', exact: true }).count(), 0);
+  await page.unroute('**/api/v2/network/addresses');
+  await page.getByRole('button', { name: '刷新', exact: true }).click();
   await page.getByRole('button', { name: '修改分配网段', exact: true }).click();
   dialog = page.getByRole('dialog', { name: '修改设备分配网段', exact: true });
   await dialog.getByLabel('IPv4 分配网段', { exact: true }).fill('100.101.50.12/24');
