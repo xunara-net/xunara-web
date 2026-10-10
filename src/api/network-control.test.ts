@@ -10,6 +10,16 @@ const relay = { id: "relay/test", name: "测试中继", hostname: "relay.test", 
 const historyItem = { config_version: 1, desired_state: "online", bandwidth_limit: 0, region_name: "原始地区", actor: "system:import", created: "2026-10-10T00:00:00Z" };
 
 describe("network configuration contracts", () => {
+  it("rejects malformed optional relay execution instead of confirming it", async () => {
+    const execution = { config_version: "2", applied_version: "2", status: "applied", state: "online", bandwidth_limit: 0 };
+    const report = { ...relay, execution, executionReportedAt: "2026-10-10T00:00:00Z", lastSeen: "2026-10-10T00:00:00Z" };
+    respond(report);
+    expect((await updateManagedRelay(relay.id, { config_version: 1, desired_state: "online", bandwidth_limit: 0, region_name: "地区" }, "csrf-token")).execution).toEqual(execution);
+    for (const malformed of [{ ...report, executionReportedAt: undefined }, { ...report, execution: { ...execution, status: "received" } }, { ...report, execution: { ...execution, bandwidth_limit: undefined } }]) {
+      respond(malformed);
+      await expect(updateManagedRelay(relay.id, { config_version: 1, desired_state: "online", bandwidth_limit: 0, region_name: "地区" }, "csrf-token")).rejects.toThrow("格式异常");
+    }
+  });
   it("rejects missing configuration and validation fields rather than fabricating results", async () => {
     for (const load of [getDNSConfiguration, getPolicyConfiguration, () => validatePolicy(draft)]) { respond({}); await expect(load()).rejects.toThrow("格式异常"); }
   });

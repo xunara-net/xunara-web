@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { relayExecutionContract } from "../utils/relay-execution";
 import type { ManagedRelay } from "./types";
 import type { AddressRecord, DNSConfiguration, DNSSettings, PolicyConfiguration, PolicyDraft, PolicyExplanation, PolicyHistory, PolicyProbe, PolicyValidation, RelayEnrollment, RelayPool, RelayConfigurationHistory, RelayConfigurationChange } from "./network-types";
 
@@ -21,7 +22,7 @@ function relayEnrollment(value: unknown): value is RelayEnrollment {
   return object(value) && typeof value.id === "string" && typeof value.visibility === "string" && typeof value.used === "boolean" && typeof value.expired === "boolean";
 }
 function managedRelay(value: unknown): value is ManagedRelay {
-  return object(value) && typeof value.id === "string" && typeof value.name === "string" && revision(value.regionId) && revision(value.configVersion) && typeof value.desiredState === "string" && typeof value.visibility === "string" && typeof value.online === "boolean" && typeof value.healthy === "boolean" && Number.isSafeInteger(value.bandwidthLimit);
+  return object(value) && typeof value.id === "string" && typeof value.name === "string" && revision(value.regionId) && revision(value.configVersion) && typeof value.desiredState === "string" && typeof value.visibility === "string" && typeof value.online === "boolean" && typeof value.healthy === "boolean" && Number.isSafeInteger(value.bandwidthLimit) && relayExecutionContract(value as unknown as ManagedRelay);
 }
 
 // 未知响应不是“默认拒绝”或“保存成功”；尤其不能将缺失的权限结果渲染为安全结论。

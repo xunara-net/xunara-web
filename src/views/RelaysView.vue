@@ -11,11 +11,15 @@ import { copyText } from "../utils/clipboard";
 import { emptyResource, refreshResource } from "../utils/resources";
 import { enrollmentStatus, relayInstallCommand, relayStatus, relayDesiredStateText, relayBandwidthText } from "../utils/relays";
 import { formatTime } from "../utils/format";
+import { relayExecutionSummary } from "../utils/relay-execution";
 import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
 import ModalDialog from "../components/ModalDialog.vue";
 
 const tab = ref("managed");
+const executionNow = ref(Date.now());
+const executionTimer = setInterval(() => { executionNow.value = Date.now(); }, 30_000);
+onBeforeUnmount(() => clearInterval(executionTimer));
 const pool = reactive(emptyResource<RelayPool>());
 const derp = reactive(emptyResource<DERPInfo>());
 const tokens = reactive(emptyResource<RelayEnrollment[]>());
@@ -158,10 +162,11 @@ async function restore(item: RelayConfigurationHistory) {
 
   <section v-if="tab === 'managed'" class="card">
     <div class="card-head"><h2>本网络的托管中继</h2></div>
-    <DataTable v-if="!pool.error" :columns="[{ key: 'name', title: '节点' }, { key: 'regionName', title: '地区' }, { key: 'online', title: '上报状态' }, { key: 'lastSeen', title: '最近心跳' }, { key: 'actions', title: '操作', align: 'right' }]" :rows="pool.data?.items ?? []" :loading="loading || pool.data === null" row-key="id" empty-title="还没有私有中继" empty-desc="公共或静态中继在下发地图中查看。自建中继需一次性令牌与可达的 TLS 端口。">
+    <DataTable v-if="!pool.error" :columns="[{ key: 'name', title: '节点' }, { key: 'regionName', title: '地区' }, { key: 'online', title: '上报状态' }, { key: 'execution', title: '配置执行' }, { key: 'lastSeen', title: '最近心跳' }, { key: 'actions', title: '操作', align: 'right' }]" :rows="pool.data?.items ?? []" :loading="loading || pool.data === null" row-key="id" empty-title="还没有私有中继" empty-desc="公共或静态中继在下发地图中查看。自建中继需一次性令牌与可达的 TLS 端口。">
       <template #cell-name="{ row }"><strong>{{ row.name }}</strong><div class="muted small-text mono">{{ row.hostname }}</div></template>
       <template #cell-regionName="{ row }">{{ row.regionName || row.regionCode || '—' }}<div class="muted small-text">{{ row.regionId ? `区域 ${row.regionId}` : '旧版本 · 未提供地图信息' }}</div></template>
       <template #cell-online="{ row }"><span class="badge">{{ relayStatus(row) }}</span><div class="muted small-text">{{ row.healthy ? '健康上报正常' : '未确认健康' }}</div></template>
+      <template #cell-execution="{ row }"><div class="muted small-text">期望 v{{ row.configVersion }} · {{ relayDesiredStateText(row.desiredState) }}</div><span class="badge" :class="relayExecutionSummary(row, executionNow).tone">{{ relayExecutionSummary(row, executionNow).label }}</span><div class="muted small-text">{{ relayExecutionSummary(row, executionNow).detail }}</div><div v-if="row.executionReportedAt" class="muted small-text">回执 {{ formatTime(row.executionReportedAt) }}</div></template>
       <template #cell-lastSeen="{ row }">{{ formatTime(row.lastSeen) }}</template>
       <template #cell-actions="{ row }"><div class="row-actions"><button class="btn small" :disabled="busy" @click="openHistory(row)">历史</button><button v-if="canWrite" class="btn small" :disabled="busy" @click="edit(row)">管理</button><button v-if="canWrite" class="btn small danger" :disabled="busy" @click="remove(row)">删除</button><span v-if="!canWrite" class="muted">只读</span></div></template>
     </DataTable>
@@ -181,6 +186,7 @@ async function restore(item: RelayConfigurationHistory) {
       <button v-if="editConflict && !latest" class="btn" type="button" :disabled="busy" @click="readLatest">查看最新配置（保留草稿）</button>
       <div v-if="latest" class="alert info stack"><p>最新 v{{ latest.configVersion }}：{{ relayDesiredStateText(latest.desiredState) }} · {{ latest.regionName || '未命名地区' }} · {{ relayBandwidthText(latest.bandwidthLimit) }}</p><p>对照后确认使用最新版本作为基准；下方草稿不会被改动，仍需手动保存。</p><button class="btn" type="button" :disabled="busy" @click="acceptLatest">确认最新基准，保留草稿</button></div>
       <label class="field"><span class="label">期望状态</span><select v-model="draft.desired_state" class="select" aria-label="中继期望状态" :disabled="busy || editing?.desiredState === 'revoked'"><option value="online">启用</option><option value="maintenance">维护</option><option value="disabled">停用</option><option value="revoked">撤销（不可恢复身份）</option></select></label>
+      <p class="muted small-text">维护拒绝新连接、保留既有连接；停用和撤销将断开既有连接。保存后请查看中继执行回执，撤销身份不可恢复。</p>
       <label class="field"><span class="label">地区名称</span><input v-model="draft.region_name" class="input" aria-label="中继地区名称" maxlength="128" :disabled="busy" /></label>
       <label class="field"><span class="label">每连接带宽上限（字节 / 秒）</span><input v-model.number="draft.bandwidth_limit" class="input" aria-label="中继带宽上限" type="number" min="-1" step="1" :disabled="busy" /><span class="help">0 保持节点本地设置；-1 取消限速；正整数设为每连接字节速率。保存的是期望值，不代表运行时已应用，也不是计费数据。</span></label>
       <p v-if="editing?.certName" class="muted small-text mono">TLS 校验：{{ editing.certName }}</p>
@@ -198,7 +204,7 @@ async function restore(item: RelayConfigurationHistory) {
         <p>{{ relayDesiredStateText(item.desired_state) }} · {{ item.region_name || '未命名地区' }} · {{ relayBandwidthText(item.bandwidth_limit) }}</p>
         <p class="muted small-text">{{ item.actor }} · {{ formatTime(item.created) }}</p>
       </article>
-      <p class="muted small-text">恢复只发布期望配置，不回退版本号，不恢复凭据、心跳或已撤销身份；运行时是否执行需独立核验。</p>
+      <p class="muted small-text">恢复只发布期望配置，不回退版本号，不恢复凭据、心跳或已撤销身份；请查看执行回执，并独立核验实际连接。</p>
     </div><template #footer><button class="btn" :disabled="busy || historyLoading" @click="loadHistory">刷新历史与基准</button><button class="btn" :disabled="busy" @click="closeHistory">关闭</button></template>
   </ModalDialog>
 </template>

@@ -27,6 +27,34 @@ async function runRelayHistorySmoke({ userPage, adminPage, origin, api, platform
     assert.ok(layout.scroll <= layout.width + 1);
   }
 
+  // 这里只验收服务自报的 UI 契约；真实执行和 TLS 数据面由 Relay 的 Go 集成测试验证。
+  mark('relay-execution-ui-unknown-and-fixed-failure-report');
+  await userPage.goto(origin + '/relays');
+  await userPage.getByText('执行状态未知', { exact: true }).waitFor();
+  await adminPage.goto(origin + '/admin/relays');
+  await adminPage.getByText('执行状态未知', { exact: true }).waitFor();
+  const existing = await read();
+  const telemetry = { healthy: false, connected_clients: 2, uptime_seconds: existing.uptimeSeconds || 0,
+    bytes_in: existing.bytesIn || 0, bytes_out: existing.bytesOut || 0 };
+  let response = await api('/api/relay/v1/heartbeat', relayIdentity.relay_token, { ...telemetry,
+    execution: { config_version: '2', applied_version: '1', status: 'failed', state: 'online', bandwidth_limit: 0, error_code: 'cache_write_failed' } });
+  assert.equal(response.status, 200);
+  for (const page of [userPage, adminPage]) {
+    await page.reload();
+    await page.getByText('中继上报执行失败', { exact: true }).waitFor();
+    await page.getByText('配置缓存写入失败', { exact: false }).waitFor();
+  }
+
+  mark('relay-execution-ui-service-reported-application-not-end-to-end-proof');
+  response = await api('/api/relay/v1/heartbeat', relayIdentity.relay_token, { ...telemetry,
+    execution: { config_version: '2', applied_version: '2', status: 'applied', state: existing.desiredState, bandwidth_limit: existing.bandwidthLimit } });
+  assert.equal(response.status, 200);
+  for (const page of [userPage, adminPage]) {
+    await page.reload();
+    await page.getByText('中继上报已应用 v2', { exact: true }).waitFor();
+    await page.getByText('不替代端到端验证', { exact: false }).waitFor();
+  }
+
   mark('relay-cross-surface-cas-preserves-draft-and-requires-explicit-new-baseline');
   await userPage.goto(origin + '/relays');
   await userPage.getByRole('button', { name: '管理', exact: true }).click();
@@ -50,6 +78,7 @@ async function runRelayHistorySmoke({ userPage, adminPage, origin, api, platform
   assert.equal(current.configVersion, 4);
   assert.equal(current.regionName, '保留的中继草稿');
   assert.equal(current.bandwidthLimit, 2048);
+  await userPage.getByText('待应用 v4（上报 v2）', { exact: true }).waitFor();
 
   mark('relay-history-cancel-and-confirm-restore-as-new-version');
   await userPage.getByRole('button', { name: '历史', exact: true }).click();
@@ -122,7 +151,7 @@ async function runRelayHistorySmoke({ userPage, adminPage, origin, api, platform
     await page.setViewportSize({ width: 1440, height: 1000 });
   }
   await adminPage.getByRole('button', { name: '刷新', exact: true }).click();
-  await adminPage.locator('tbody').getByText('配置 v59', { exact: false }).waitFor();
+  await adminPage.locator('tbody').getByText('期望 v59', { exact: false }).waitFor();
 }
 
 module.exports = { runRelayHistorySmoke };

@@ -335,6 +335,15 @@ export interface Organization {
   [key: string]: unknown;
 }
 
+export interface RelayExecution {
+  config_version: string;
+  applied_version?: string;
+  status: "applied" | "failed";
+  state: "pending" | "online" | "maintenance" | "disabled" | "revoked";
+  bandwidth_limit: number;
+  error_code?: string;
+}
+
 export interface ManagedRelay {
   id: string;
   name: string;
@@ -354,6 +363,8 @@ export interface ManagedRelay {
   online: boolean;
   healthy: boolean;
   lastSeen?: string;
+  execution?: RelayExecution;
+  executionReportedAt?: string;
 }
 
 export interface DERPInfo {
