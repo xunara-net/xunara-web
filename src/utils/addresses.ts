@@ -30,13 +30,22 @@ function overlap(base: number, size: number, ranges: string[]): boolean {
   return ranges.some((prefix) => { const reserved = prefixRange(prefix); return base < reserved.base + reserved.size && reserved.base < base + size; });
 }
 export function normalizeAllocationRange(value: string, reserved: string[]): string {
-  const range = prefixRange(value), allowed = prefixRange("100.64.0.0/10");
-  if (range.bits < 16 || range.bits > 28 || range.base < allowed.base || range.base + range.size > allowed.base + allowed.size) throw new Error("设备网段须为 100.64.0.0/10 内的 /16～/28；192.168、10、172 内网请使用子网路由");
+  const range = prefixRange(value);
+  if (range.bits === 0) throw new Error("分配网段不能覆盖全部 IPv4 地址");
   if (overlap(range.base, range.size, reserved)) throw new Error("网段与客户端或平台保留地址冲突，请换一个网段");
   return `${asIPv4(range.base)}/${range.bits}`;
 }
+export function allocationCompatibilityWarning(value: string): string {
+  try {
+    const range = prefixRange(value), standard = prefixRange("100.64.0.0/10");
+    if (range.base < standard.base || range.base + range.size > standard.base + standard.size) return "非标准设备网段：允许保存，但官方 Tailscale 客户端的部分功能可能不兼容。请先实测，并避免与本地局域网、子网路由或公网地址冲突。";
+  } catch { return ""; }
+  return "";
+}
 export function validateDeviceIPv4(value: string, prefix: string, reserved: string[]): string {
-  const address = ipv4Number(value.trim()), range = prefixRange(prefix), allowed = prefixRange("100.64.0.0/10");
-  if (address < allowed.base || address >= allowed.base + allowed.size || address <= range.base || address >= range.base + range.size - 1 || overlap(address, 1, reserved)) throw new Error("IP 必须在当前网段内，不能使用网络地址、广播地址或保留地址");
+  const address = ipv4Number(value.trim()), range = prefixRange(prefix);
+  // /31 与 /32 按主机池使用全部地址；其余范围与服务端共用网络/广播边界。
+  const boundary = range.bits < 31 && (address === range.base || address === range.base + range.size - 1);
+  if (address < range.base || address >= range.base + range.size || boundary || overlap(address, 1, reserved)) throw new Error("IP 必须在当前网段内，不能使用网络地址、广播地址或保留地址（/31、/32 主机池除外）");
   return asIPv4(address);
 }

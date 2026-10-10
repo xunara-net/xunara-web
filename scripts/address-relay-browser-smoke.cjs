@@ -139,6 +139,45 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, assignPlan
   assert.equal((await read('/api/v1/machines/smoke-1')).ipv4, '100.101.50.21');
   for (const width of [320, 390, 768]) { await page.setViewportSize({ width, height: 844 }); await noOverflow(); }
 
+  mark('flexible-private-large-and-small-pools-preview-save-and-preservation');
+  await page.goto(origin + '/network');
+  for (const [input, canonical] of [
+    ['10.42.50.12/8', '10.0.0.0/8'], ['172.31.50.12/12', '172.16.0.0/12'],
+    ['192.168.50.12/29', '192.168.50.8/29'], ['192.168.50.5/31', '192.168.50.4/31'],
+    ['192.168.50.20/32', '192.168.50.20/32'],
+  ]) {
+    const previous = await read('/api/v2/network/addresses');
+    await page.getByRole('button', { name: '修改分配网段', exact: true }).click();
+    dialog = page.getByRole('dialog', { name: '修改设备分配网段', exact: true });
+    await dialog.getByLabel('IPv4 分配网段', { exact: true }).fill(input);
+    await dialog.getByRole('alert').getByText('非标准设备网段：允许保存', { exact: false }).waitFor();
+    await dialog.getByRole('button', { name: '校验并预览', exact: true }).click();
+    await dialog.getByRole('button', { name: '确认保存分配网段', exact: true }).waitFor();
+    assert.equal((await read('/api/v2/network/addresses')).revision, previous.revision);
+    await noOverflow();
+    await dialog.getByRole('button', { name: '确认保存分配网段', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    const current = await read('/api/v2/network/addresses');
+    assert.equal(current.ipv4_cidr, canonical); assert.equal(current.pending, false);
+    assert.equal(current.revision, previous.revision + 1);
+    assert.equal((await read('/api/v1/machines/smoke-1')).ipv4, '100.101.50.21');
+    await page.getByRole('alert').getByText('非标准设备网段：允许保存', { exact: false }).waitFor();
+    await page.reload();
+    await page.getByRole('alert').getByText('非标准设备网段：允许保存', { exact: false }).waitFor();
+    assert.equal((await read('/api/v2/network/addresses')).ipv4_cidr, canonical);
+  }
+
+  mark('single-host-pool-explicit-ip-edit-works-on-mobile');
+  await page.goto(origin + '/devices/' + machine.id);
+  await page.getByRole('button', { name: '修改 IPv4', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '修改设备 IPv4', exact: true });
+  await dialog.getByLabel('设备新 IPv4', { exact: true }).fill('192.168.50.20');
+  page.once('dialog', (native) => native.accept());
+  await dialog.getByRole('button', { name: '确认修改 IPv4', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal((await read('/api/v1/machines/smoke-1')).ipv4, '192.168.50.20');
+  for (const width of [320, 390, 768]) { await page.setViewportSize({ width, height: 844 }); await noOverflow(); }
+
   mark('member-cannot-edit-allocation-ip-or-external-map-but-can-download');
   await memberPage.goto(origin + '/network'); await memberPage.getByRole('heading', { name: '网络基本信息', exact: true }).waitFor();
   assert.equal(await memberPage.getByRole('button', { name: '修改分配网段', exact: true }).isDisabled(), true);
