@@ -9,6 +9,7 @@ import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
 import StatCard from "../components/StatCard.vue";
 import AccountPasskeys from "../components/AccountPasskeys.vue";
+import AccountIdentities from "../components/AccountIdentities.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authMethodLabel, revokedReasonLabel, securityFindingText, severityLabel, splitAccountSessions } from "../utils/security";
 
@@ -99,6 +100,7 @@ async function revoke(target: AccountSession | "others" | "all") {
     <template #actions><RouterLink class="btn" to="/settings">修改密码</RouterLink></template>
   </PageHeader>
 
+  <AccountIdentities />
   <AccountPasskeys />
 
   <div class="card">

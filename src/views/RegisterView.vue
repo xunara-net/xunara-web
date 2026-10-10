@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
 import { session } from "../store";
 import type { ProvidersPayload, TenantSignupResult } from "../api/types";
+import { beginInvitedIdentity } from "../api/account-identities";
 
 // One registration page, three deployment shapes:
 //
@@ -16,6 +17,7 @@ import type { ProvidersPayload, TenantSignupResult } from "../api/types";
 // The providers payload says which one this is, so the page never guesses.
 
 const route = useRoute();
+const router = useRouter();
 
 const info = ref<ProvidersPayload | null>(null);
 const loadError = ref("");
@@ -37,10 +39,30 @@ const createsTenant = computed(() => registration.value === "open" && selfServic
 const canRegister = computed(() => registration.value === "invite" || registration.value === "open");
 
 onMounted(() => {
-  const fromQuery = route.query.invite;
-  if (typeof fromQuery === "string") invite.value = fromQuery;
+  // 旧链接中的邀请码不再被读取，及时清除地址栏，正式流程改为单独输入。
+  if (route.query.invite !== undefined) {
+    const query = { ...route.query };
+    delete query.invite;
+    void router.replace({ path: route.path, query, hash: route.hash });
+  }
   void load();
 });
+
+async function registerExternal(providerID: string) {
+  if (busy.value || !info.value) return;
+  if (registration.value === "open") {
+    const provider = info.value.providers.find((entry) => entry.id === providerID);
+    if (provider) window.location.assign(provider.start_url);
+    return;
+  }
+  if (!info.value.registration_token || !invite.value.trim()) return;
+  busy.value = true; error.value = "";
+  try {
+    const target = await beginInvitedIdentity(providerID, invite.value.trim(), info.value.registration_token);
+    invite.value = ""; password.value = "";
+    window.location.assign(target);
+  } catch (err) { error.value = errorMessage(err); busy.value = false; }
+}
 
 async function load() {
   loading.value = true;
@@ -143,7 +165,7 @@ async function submit() {
       </template>
 
       <!-- Registration disabled by the deployment. -->
-      <template v-else-if="!loading && !loadError && (!canRegister || !info?.local_login || info.setup_required)">
+      <template v-else-if="!loading && !loadError && (!canRegister || (!info?.local_login && !info?.providers.length) || info?.setup_required)">
         <div class="alert info" style="margin-top: 18px">
           {{ info?.setup_required ? "服务尚未初始化，请等待管理员完成配置。" : "本部署未开放自助注册，请联系管理员获取账号。" }}
         </div>
@@ -153,11 +175,17 @@ async function submit() {
       <template v-else-if="!loading && !loadError">
         <div v-if="error" class="alert error" style="margin-top: 18px">{{ error }}</div>
 
-        <form style="margin-top: 20px" @submit.prevent="submit">
-          <div v-if="registration === 'invite'" class="field">
+          <div v-if="registration === 'invite'" class="field" style="margin-top: 20px">
             <label for="invite">邀请码</label>
-            <input id="invite" v-model="invite" class="input mono" placeholder="invite-…" />
+            <input id="invite" v-model="invite" class="input mono" placeholder="invite-…" :disabled="busy" autocomplete="off" />
+            <p class="help">在管理员提供的网络注册地址输入邀请码。邀请码一次有效，请勿添加到网址中。</p>
           </div>
+        <div v-if="!createsTenant && info?.providers.length" class="stack" style="margin-top: 16px">
+          <button v-for="provider in info.providers" :key="provider.id" class="btn" :disabled="busy || registration === 'invite' && (!invite.trim() || !info.registration_token)" @click="registerExternal(provider.id)">{{ busy ? '正在授权…' : `使用 ${provider.name} 加入网络` }}</button>
+          <p class="help">授权成功后，邀请码与成员额度在服务端一起确认。不需要另设密码。</p>
+        </div>
+
+        <form v-if="info?.local_login" style="margin-top: 20px" @submit.prevent="submit">
           <div class="field">
             <label for="login">登录名</label>
             <input

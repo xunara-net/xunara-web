@@ -59,6 +59,11 @@ export async function getDNSConfiguration(): Promise<DNSConfiguration> {
   requireContract(object(payload) && revision(payload.revision) && hash(payload.base_hash) && typeof payload.domain === "string" && typeof payload.can_edit === "boolean" && typeof payload.csrf_token === "string" && dnsSettings(payload.settings));
   return payload;
 }
+export async function initializeMagicDNS(body: { revision: number; base_hash: string }, csrfToken: string) {
+  const payload = await api<{ domain: string; revision: number; base_hash: string; settings: DNSSettings }>("/api/v2/dns/initialize", { method: "POST", body, headers: { "X-CSRF-Token": csrfToken } });
+  requireContract(object(payload) && typeof payload.domain === "string" && payload.domain.length > 0 && revision(payload.revision) && payload.revision > body.revision && hash(payload.base_hash) && dnsSettings(payload.settings) && payload.settings.magic_dns === true);
+  return payload;
+}
 export async function saveDNSConfiguration(body: { revision: number; base_hash: string; settings: DNSSettings }, csrfToken: string) {
   const payload = await api<{ revision: number; base_hash: string; settings: DNSSettings }>("/api/v2/dns/configuration", { method: "PUT", body, headers: { "X-CSRF-Token": csrfToken } });
   requireContract(object(payload) && revision(payload.revision) && payload.revision > body.revision && hash(payload.base_hash) && dnsSettings(payload.settings));

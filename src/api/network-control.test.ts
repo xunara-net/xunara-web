@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getDNSConfiguration, getPolicyConfiguration, policyMatrix, publishPolicy, saveDNSConfiguration, simulatePolicy, validatePolicy, deleteAddressRecord, listRelayConfigurationHistory, updateManagedRelay, deleteManagedRelay } from "./network-control";
+import { getDNSConfiguration, initializeMagicDNS, getPolicyConfiguration, policyMatrix, publishPolicy, saveDNSConfiguration, simulatePolicy, validatePolicy, deleteAddressRecord, listRelayConfigurationHistory, updateManagedRelay, deleteManagedRelay } from "./network-control";
 
 const fetchMock = vi.fn<typeof fetch>();
 beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("window", { location: { origin: "https://tenant.example.test" } }); vi.stubGlobal("fetch", fetchMock); });
@@ -10,6 +10,19 @@ const relay = { id: "relay/test", name: "测试中继", hostname: "relay.test", 
 const historyItem = { config_version: 1, desired_state: "online", bandwidth_limit: 0, region_name: "原始地区", actor: "system:import", created: "2026-10-10T00:00:00Z" };
 
 describe("network configuration contracts", () => {
+  it("initializes MagicDNS with CAS and no caller-provided domain", async () => {
+    const payload = { domain: "net-example.xunara.internal", revision: 1, base_hash: "b".repeat(64), settings: { magic_dns: true, nameservers: [], search_domains: [], split_dns: {} } };
+    respond(payload);
+    expect(await initializeMagicDNS({ revision: 0, base_hash: "a".repeat(64) }, "csrf")).toEqual(payload);
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ "X-CSRF-Token": "csrf" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ revision: 0, base_hash: "a".repeat(64) });
+  });
+  it("does not acknowledge missing domain or a disabled MagicDNS result", async () => {
+    for (const domain of ["", "net-example.xunara.internal"]) {
+      respond({ domain, revision: 1, base_hash: "b".repeat(64), settings: { magic_dns: false, nameservers: [], search_domains: [], split_dns: {} } });
+      await expect(initializeMagicDNS({ revision: 0, base_hash: "a".repeat(64) }, "csrf")).rejects.toThrow("格式异常");
+    }
+  });
   it("rejects malformed optional relay execution instead of confirming it", async () => {
     const execution = { config_version: "2", applied_version: "2", status: "applied", state: "online", bandwidth_limit: 0 };
     const report = { ...relay, execution, executionReportedAt: "2026-10-10T00:00:00Z", lastSeen: "2026-10-10T00:00:00Z" };

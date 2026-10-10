@@ -90,6 +90,14 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  LAST_LOGIN_METHOD: "不能解绑最后一种可用登录方式，请先设置另一种登录方式",
+  IDENTITIES_UNAVAILABLE: "无法读取或保存第三方绑定，请刷新后重试",
+  IDENTITY_NOT_FOUND: "绑定不存在或不属于当前账户，请刷新列表",
+  LINK_BROWSER_REQUIRED: "请在已登录的浏览器中发起绑定",
+  PROVIDER_UNAVAILABLE: "第三方登录服务暂时不可用，请稍后再试",
+  PROVIDER_INVALID: "请选择已配置的第三方登录提供方",
+  AUTHORIZATION_UNAVAILABLE: "授权服务暂时不可用，请稍后再试",
+  INVITATION_INVALID: "邀请码无效、已使用、被撤销或过期，请向网络所有者获取新码",
   MEMBER_CHANGED: "成员信息已被其他管理员修改，请刷新列表后重新确认，不会自动覆盖",
   LAST_OWNER: "至少保留一名网络所有者，请先授予另一名成员所有者角色",
   MEMBER_WRITE_FORBIDDEN: "当前所有者或服务密钥权限已变化，请重新确认登录身份",

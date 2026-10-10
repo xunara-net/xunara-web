@@ -201,7 +201,8 @@ async function runNetworkSmoke({ page, memberPage, origin, state, mark, assertSe
   await dialog.getByLabel('记录地址', { exact: true }).fill(destination.ipv4);
   await dialog.getByRole('button', { name: '保存记录', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
-  const dnsRow = page.locator('tbody tr').filter({ hasText: 'browser-nas.smoke.xunara.test' });
+  const dnsConfiguration = await read('/api/v2/dns/configuration');
+  const dnsRow = page.locator('tbody tr').filter({ hasText: `browser-nas.${dnsConfiguration.domain}` });
   await dnsRow.waitFor();
   await dnsRow.getByRole('button', { name: '编辑', exact: true }).click();
   dialog = page.getByRole('dialog', { name: '编辑 DNS 地址记录', exact: true });

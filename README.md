@@ -151,6 +151,19 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 `/derp`、`/health` 反向代理到 `xunara-server`，保证同源（会话 Cookie 与 CSRF
 模型依赖同源）。
 
+## MagicDNS 与第三方账号
+
+DNS 页面在网络未初始化时提供明确的「启用 MagicDNS」确认操作，免费套餐也可以
+使用设备名称和开关，其他 DNS 设置仍遵守套餐权限。初始化不改变 IP 或设备身份，
+内部域名保持稳定；不是公网域名或公网证书服务。
+
+安全中心增加第三方账号绑定与解绑，服务端确认仍保留可用登录方法后才可解绑。
+没有提供方配置或读取失败时明确提示，不宣称已接入真实 OIDC。邀请注册页支持密码
+或已配置的 OIDC；邀请码只经 POST 正文，旧 URL 参数不再被读取。
+
+需搭配 [服务端账户入门版本](https://github.com/xunara-net/xunara-server/blob/main/docs/account-onboarding-and-magicdns.md)，
+先升级服务端再部署 Web。回调、凭据文件、迁移与未实现边界以服务端文档为准。
+
 ## 仓库关系
 
 | 仓库 | 职责 |

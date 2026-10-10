@@ -75,6 +75,8 @@ export interface DNSSettings {
   split_dns: Record<string, string[]>;
 }
 export interface DNSConfiguration {
+	can_initialize?: boolean;
+	suggested_domain?: string;
   revision: number;
   base_hash: string;
   domain: string;

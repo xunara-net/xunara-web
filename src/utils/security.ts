@@ -23,6 +23,7 @@ export function revokedReasonLabel(reason?: string): string {
     "signed out other sessions": "退出其他登录",
     "signed out one session": "单独退出",
     "password changed": "修改密码后退出",
+    "identity unlinked": "第三方账号解绑后退出",
     rotated: "会话已轮换",
     logout: "主动退出",
     "revoked by the platform operator": "管理员强制下线",
