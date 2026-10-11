@@ -15,7 +15,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: Object.fromEntries(
-      ["/api", "/key", "/ts2021", "/derp", "/health", "/version", "/.well-known"].map(
+      ["/api", "/key", "/ts2021", "/derp", "/health", "/version", "/.well-known", "/oidc", "/oauth2"].map(
         (path) => [path, { target: controlPlane, changeOrigin: false }],
       ),
     ),

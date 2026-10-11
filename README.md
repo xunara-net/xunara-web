@@ -1,5 +1,9 @@
 # Xunara Web（玄序 · 用户控制台）
 
+第三方入口复用实际配置，支持 OIDC 与原生 OAuth2 登录、绑定和邀请加入，不增加
+虚假的提供方按钮。开发代理与 nginx 均将回调转给后端，配置和未交付边界见
+[服务端 OAuth2 手册](https://github.com/xunara-net/xunara-server/blob/main/docs/oauth2-login.md)。
+
 Xunara 的用户控制台：登录/注册、网络总览、设备、拓扑、权限、DNS、路由、
 API 密钥、安全中心、审计、套餐用量与个人设置。中文优先，浅色/深色自适应。
 

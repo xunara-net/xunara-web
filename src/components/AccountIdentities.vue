@@ -66,7 +66,7 @@ async function unlink(item: AccountIdentity) {
       <div v-else-if="error" class="alert error" role="alert">{{ error }}</div>
       <template v-if="!loading && data">
         <p class="muted small-text">绑定后可用第三方账号登录本网络，不会新建成员或信任设备。相同邮箱的账户不会自动合并。</p>
-        <div v-if="!data.providers.length" class="alert info">此网络尚未配置 OIDC 登录提供方，请联系部署管理员。已有绑定仍可管理。</div>
+        <div v-if="!data.providers.length" class="alert info">此网络尚未配置第三方登录（OAuth2 / OIDC），请联系部署管理员。已有绑定仍可管理。</div>
         <div v-for="item in data.items" :key="item.id" class="identity-row">
           <div class="identity-description"><strong>{{ item.provider_name }}</strong> <span class="badge" :class="item.enabled ? 'success' : ''">{{ item.enabled ? '已绑定' : '提供方已停用' }}</span><p class="muted wrap-anywhere">{{ item.display_name || item.email || '第三方账户' }}<span v-if="item.display_name && item.email"> · {{ item.email }}</span></p></div>
           <button class="btn small danger" :disabled="!!busy" @click="unlink(item)">{{ busy === item.id ? '处理中…' : '解除绑定' }}</button>
