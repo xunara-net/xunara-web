@@ -55,6 +55,10 @@ describe("ApiError", () => {
 });
 
 describe("errorMessage", () => {
+  it.each(["LOGIN_HISTORY_FAILED", "INVALID_LOGIN_HISTORY_PAGE"])("explains %s in Chinese without pretending history is empty", (code) => {
+    expect(errorMessage(new ApiError(500, `${code}: read unavailable`))).toContain("登录记录");
+    expect(errorMessage(new ApiError(500, `${code}: read unavailable`))).not.toContain("read unavailable");
+  });
   it("translates a wrong current password and rate limit without exposing passwords", () => {
     expect(errorMessage(new ApiError(400, "CURRENT_PASSWORD_INVALID: current password is incorrect"))).toContain("当前密码不正确");
     expect(errorMessage(new ApiError(429, "PASSWORD_RATE_LIMITED: too many attempts"))).toContain("请稍后再试");

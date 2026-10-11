@@ -83,6 +83,10 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     const code = err.errorCode;
+    // 新历史接口只给可执行的读取建议；保留既有错误的展示契约。
+    if (code === "LOGIN_HISTORY_FAILED" || code === "INVALID_LOGIN_HISTORY_PAGE") {
+      return `${humanizeCode(code)}（${code}）`;
+    }
     return code ? `${humanizeCode(code)}（${err.message}）` : err.message;
   }
   if (err instanceof Error) return err.message;
@@ -170,6 +174,8 @@ const codeMessages: Record<string, string> = {
   SESSION_CHANGED: "当前登录已失效，请重新登录",
   SESSION_NOT_FOUND: "该登录记录不存在或不属于当前账户，请刷新列表",
   SESSION_LIST_FAILED: "登录列表读取失败，请稍后重试",
+  LOGIN_HISTORY_FAILED: "登录记录读取失败，请稍后重试；这不代表没有登录记录",
+  INVALID_LOGIN_HISTORY_PAGE: "登录记录分页已失效或参数不正确，请刷新最新记录",
   SESSION_REVOKE_FAILED: "退出操作未能完成，请稍后重试",
   INVALID_SESSION_REVOCATION: "退出范围不正确，请刷新页面重试",
   INVALID_ACCOUNT: "资料格式不正确，请检查昵称和联系邮箱",
