@@ -17,7 +17,7 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, assignPlan
   await page.getByRole('heading', { name: '托管中继程序下载', exact: true }).waitFor();
   const links = await page.getByRole('link', { name: /^直接下载/ }).evaluateAll((elements) => elements.map((element) => element.href));
   assert.equal(links.length, 7); assert.equal(new Set(links).size, 7);
-  for (const link of links) assert.ok(link.startsWith('https://github.com/xunara-net/xunara-relay/releases/download/v0.1.0-preview.1/xunara-relay_'));
+  for (const link of links) assert.ok(link.startsWith('https://github.com/xunara-net/xunara-relay/releases/download/v0.1.0-preview.2/xunara-relay_'));
   assert.ok((await page.getByRole('link', { name: '下载 SHA256SUMS 校验和', exact: true }).getAttribute('href')).endsWith('/SHA256SUMS'));
   for (const width of [320, 390, 768]) { await page.setViewportSize({ width, height: 844 }); await noOverflow(); }
 
@@ -105,6 +105,7 @@ async function runAddressRelaySmoke({ page, memberPage, origin, mark, assignPlan
   mark('saved-allocation-refreshes-plan-and-dashboard-without-page-reload');
   assert.equal((await read('/api/v1/auth/session')).plan.network_prefix, saved.ipv4_cidr);
   await page.setViewportSize({ width: 1440, height: 1000 });
+  if (await page.getByRole('button', { name: '更多管理与设置', exact: true }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: '更多管理与设置', exact: true }).click();
   await page.getByRole('link', { name: '套餐与用量', exact: true }).click();
   await page.getByRole('heading', { name: '套餐与用量', exact: true }).waitFor();
   await page.getByText(saved.ipv4_cidr, { exact: true }).waitFor();

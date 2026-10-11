@@ -273,7 +273,7 @@ async function runNetworkSmoke({ page, memberPage, origin, state, mark, assertSe
   await tokenRow.getByRole('button', { name: '撤销', exact: true }).click();
   await tokenRow.waitFor({ state: 'detached' });
   await feature('接入指南');
-  assert.equal((await page.locator('pre').innerText()).includes(secret), false);
+  assert.equal((await page.content()).includes(secret), false);
   await noOverflow();
   for (const target of ['/permissions', '/dns', '/relays']) {
     await memberPage.goto(origin + target);

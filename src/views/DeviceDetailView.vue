@@ -12,6 +12,7 @@ import { session } from "../store";
 import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import AsyncSection from "../components/AsyncSection.vue";
+import DeviceConnectionPanel from "../components/DeviceConnectionPanel.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authorizationLabel, canManageNetwork, routeChanges } from "../utils/devices";
 
@@ -59,6 +60,8 @@ async function load() {
   const id = String(route.params.id ?? "");
   loading.value = true;
   error.value = "";
+  machine.value = null;
+  routeDraft.value = [];
   try {
     const result = await ep.getMachine(id);
     if (id !== String(route.params.id ?? "")) return;
@@ -95,7 +98,7 @@ async function saveRoutes() {
 }
 
 async function remove() {
-  if (!machine.value || !canWrite.value) return;
+  if (!machine.value || !canWrite.value || loading.value || saving.value) return;
   if (!window.confirm(`确定删除设备「${machine.value.hostname}」？`)) return;
   try {
     await ep.deleteMachine(machine.value.id);
@@ -108,14 +111,16 @@ async function remove() {
 </script>
 
 <template>
-  <PageHeader :title="machine?.hostname || '设备详情'" desc="设备信息、路由与撤销操作。">
+  <PageHeader :title="machine?.hostname || '设备详情'" desc="连接与中继、网络地址和路由状态。">
     <template #actions>
       <router-link class="btn" to="/devices">返回列表</router-link>
-      <button v-if="canWrite" class="btn danger" @click="remove">删除设备</button>
+      <button class="btn" :disabled="loading || saving" @click="load">刷新设备</button>
+      <button v-if="canWrite" class="btn danger" :disabled="loading || saving || !machine" @click="remove">删除设备</button>
     </template>
   </PageHeader>
 
   <AsyncSection :loading="loading" :error="error">
+    <DeviceConnectionPanel v-if="machine" :machine="machine" />
     <div v-if="machine" class="grid cols-2">
       <div class="card">
         <div class="card-head"><h2>基本信息</h2><StatusBadge :online="machine.online" :expired="machine.expired" /></div>
@@ -144,6 +149,8 @@ async function remove() {
             <div class="k">IPv6</div><div class="v mono">{{ machine.ipv6 || "—" }}</div>
             <div class="k">宣告路由</div><div class="v">{{ announced.length ? announced.join("、") : "无" }}</div>
             <div class="k">已批准路由</div><div class="v">{{ approved.length ? approved.join("、") : "无" }}</div>
+            <div class="k">实际生效路由</div><div class="v">{{ machine.effectiveRoutes?.length ? machine.effectiveRoutes.join('、') : '无（需同时宣告并批准）' }}</div>
+            <div class="k">密钥有效期</div><div class="v">{{ machine.expires ? formatTime(machine.expires) : '未设置到期时间' }}</div>
           </div>
         </div>
       </div>

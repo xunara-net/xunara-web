@@ -1,5 +1,5 @@
 // 固定到已发布且校验过的版本，不能用 latest 或浏览器架构替用户选择服务器程序。
-const version = "v0.1.0-preview.1";
+const version = "v0.1.0-preview.2";
 const repository = "https://github.com/xunara-net/xunara-relay";
 const base = `${repository}/releases/download/${version}`;
 export const relayRelease = {

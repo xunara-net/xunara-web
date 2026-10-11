@@ -5,49 +5,16 @@ import { session } from "../store";
 import { errorMessage } from "../api/client";
 import NavIcon from "./NavIcon.vue";
 import { useDialogFocus } from "../utils/dialog";
+import { coreNavigation, managementNavigation } from "../utils/navigation";
 
-// Navigation groups mirror the specification's console map (spec 93/94):
-// 我的账户 / 我的网络 / 接入 / 平台. Items that need a capability the plan
-// does not grant stay visible but explain themselves on the page.
-const groups = computed(() => [
-  {
-    title: "总览",
-    items: [
-      { to: "/dashboard", label: "控制台首页", icon: "home" },
-      { to: "/plan", label: "套餐与用量", icon: "plan" },
-    ],
-  },
-  {
-    title: "我的网络",
-    items: [
-      { to: "/devices", label: "设备", icon: "device" },
-      { to: "/network", label: "网络", icon: "network" },
-      { to: "/permissions", label: "访问权限", icon: "lock" },
-      { to: "/dns", label: "DNS", icon: "dns" },
-      { to: "/relays", label: "我的中继", icon: "relay" },
-      { to: "/routes", label: "路由与出口", icon: "route" },
-      { to: "/topology", label: "拓扑与连接", icon: "topology" },
-    ],
-  },
-  {
-    title: "接入与安全",
-    items: [
-      { to: "/api", label: "API 与密钥", icon: "key" },
-      { to: "/security", label: "安全中心", icon: "shield" },
-      { to: "/audit", label: "审计日志", icon: "audit" },
-    ],
-  },
-  {
-    title: "账户",
-    items: [
-      { to: "/members", label: "成员与权限", icon: "members" },
-      ...(session.state.user?.role === "owner" ? [{ to: "/authentication", label: "登录与注册", icon: "shield" }] : []),
-      { to: "/settings", label: "个人设置", icon: "settings" },
-    ],
-  },
-]);
+// 常用网络功能直接可见；账户/审计等保留在折叠组，不删除功能或代替服务端授权。
+const management = computed(() => managementNavigation(session.state.user?.role));
+const managementOpen = ref(false);
 
 const route = useRoute();
+watch(() => route.path, (path) => {
+  if (management.value.some((entry) => path === entry.to || path.startsWith(entry.to + "/"))) managementOpen.value = true;
+}, { immediate: true });
 const router = useRouter();
 const menuOpen = ref(false);
 const signingOut = ref(false);
@@ -131,12 +98,16 @@ async function signOut() {
         <button class="btn ghost small drawer-close" aria-label="关闭菜单" @click="drawerOpen = false">×</button>
       </div>
       <nav class="sidebar-nav" aria-label="功能菜单">
-        <div v-for="group in groups" :key="group.title" class="nav-group">
-          <div class="nav-group-title">{{ group.title }}</div>
-          <router-link v-for="item in group.items" :key="item.to" :to="item.to" class="nav-item" :title="item.label" @click="drawerOpen = false">
+        <div class="nav-group">
+          <div class="nav-group-title">核心网络</div>
+          <router-link v-for="item in coreNavigation" :key="item.to" :to="item.to" class="nav-item" :title="item.label" @click="drawerOpen = false">
             <span class="nav-icon"><NavIcon :name="item.icon" /></span>
             <span class="nav-label">{{ item.label }}</span>
           </router-link>
+        </div>
+        <div class="nav-group">
+          <button class="nav-item" type="button" :aria-expanded="managementOpen" aria-controls="management-navigation" aria-label="更多管理与设置" title="更多管理与设置" @click="managementOpen = !managementOpen"><span class="nav-icon"><NavIcon name="settings" /></span><span class="nav-label">更多管理与设置 {{ managementOpen ? '−' : '+' }}</span></button>
+          <div v-if="managementOpen" id="management-navigation"><router-link v-for="item in management" :key="item.to" :to="item.to" class="nav-item" :title="item.label" @click="drawerOpen = false"><span class="nav-icon"><NavIcon :name="item.icon" /></span><span class="nav-label">{{ item.label }}</span></router-link></div>
         </div>
       </nav>
       <button class="sidebar-collapse btn ghost" :aria-label="collapsed ? '展开侧边栏' : '收起侧边栏'" @click="collapsed = !collapsed"><NavIcon name="collapse" /><span class="nav-label">收起侧边栏</span></button>

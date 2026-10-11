@@ -7,6 +7,7 @@ import { session } from "../store";
 import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
 import StatusBadge from "../components/StatusBadge.vue";
+import AddDeviceDialog from "../components/AddDeviceDialog.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authorizationLabel, canManageNetwork } from "../utils/devices";
 
@@ -15,6 +16,7 @@ const error = ref("");
 const machines = ref<Machine[]>([]);
 const pending = ref<PendingDevice[]>([]);
 const busy = ref<Record<string, boolean>>({});
+const addOpen = ref(false);
 const canWrite = computed(() => canManageNetwork(session.state.user?.role));
 
 const machineColumns = [
@@ -86,7 +88,7 @@ async function remove(machine: Machine) {
 
 <template>
   <PageHeader title="设备" desc="加入本网络的设备。新设备默认停在待审批状态，由你确认后加入。">
-    <template #actions><button class="btn" @click="load">刷新</button></template>
+    <template #actions><button class="btn primary" @click="addOpen = true">添加设备</button><button class="btn" :disabled="loading" @click="load">刷新</button></template>
   </PageHeader>
 
   <div v-if="error" class="alert error" style="margin-bottom: 16px">{{ error }}</div>
@@ -143,4 +145,5 @@ async function remove(machine: Machine) {
       </template>
     </DataTable>
   </div>
+  <AddDeviceDialog :open="addOpen" @close="addOpen = false" />
 </template>

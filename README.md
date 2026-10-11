@@ -94,8 +94,12 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
   不恢复服务凭据或遥测。期望状态/限速不代表节点已经执行，撤销身份不能通过恢复复活。
 - **程序下载**：「我的中继 → 程序下载」提供 Linux AMD64/ARM64/ARMv7、macOS Intel/
   Apple Silicon、Windows AMD64/ARM64 七种已预编译文件，无需自行编译，附校验和及构建
-  元数据。[真实预览发布](https://github.com/xunara-net/xunara-relay/releases/tag/v0.1.0-preview.1)
+  元数据。[真实预览发布](https://github.com/xunara-net/xunara-relay/releases/tag/v0.1.0-preview.2)
   不含凭据，不承诺全 OS 现场验收、签名安装器或自动升级。
+- **添加设备**：Linux curl 安装/仅登录，勾选 MagicDNS、接收路由、子网/出口；手机提供 APP 自定义服务器地址，命令不含凭据。
+- **连接详情**：归属中继/地图来源/端口、UDP/IPv6/NAT、候选端点和客户端探测延迟，不冒充实时路径。
+- **私有安装与检测**：接入指南生成固定版已校验 Linux systemd 安装命令，隐藏读取令牌/保留身份升级；私有中继逐行健康检测，不替代心跳。
+- **核心导航**：默认展示核心网络，其他管理折叠，保留深链接和手机抽屉。
 - **权限边界**：普通成员只读；写入仍由服务端校验角色、套餐与 CSRF，前端禁用/隐藏按钮
   不代替授权。网络路由批准不等于访问允许。
 
