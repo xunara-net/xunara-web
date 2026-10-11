@@ -410,6 +410,7 @@ export interface SelfServiceInfo {
 
 /** What this deployment offers before anybody has signed in. */
 export interface ProvidersPayload {
+	password_reset?: boolean;
 	member_registration?: string;
 	member_invitations?: boolean;
 	registration_token?: string;

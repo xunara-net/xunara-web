@@ -48,6 +48,7 @@ export const getProviders = async () => {
       typeof payload.setup_required !== "boolean" || typeof payload.passkeys !== "boolean" ||
       !["closed", "invite", "open"].includes(payload.registration) ||
       (payload.member_invitations !== undefined && typeof payload.member_invitations !== "boolean") ||
+      (payload.password_reset !== undefined && typeof payload.password_reset !== "boolean") ||
       (payload.member_registration !== undefined && !["closed", "invite", "open"].includes(payload.member_registration)) ||
       payload.providers.some((provider) => !provider || typeof provider.id !== "string" || !provider.id.trim() ||
         typeof provider.name !== "string" || !provider.name.trim() || !providerLoginURL(provider.start_url, undefined, provider.id)) ||

@@ -19,6 +19,7 @@ const routes = [
     meta: { public: true, bare: true },
   },
   { path: "/dashboard", name: "dashboard", component: () => import("./views/DashboardView.vue") },
+  { path: "/reset-password", name: "reset-password", component: () => import("./views/ResetPasswordView.vue"), meta: { public: true, bare: true } },
   { path: "/devices", name: "devices", component: () => import("./views/DevicesView.vue") },
   {
     path: "/devices/:id",

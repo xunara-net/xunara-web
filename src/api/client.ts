@@ -90,6 +90,12 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  PASSWORD_RESET_INVALID: "重置码无效、过期、已使用或不属于此网络，请联系平台管理员获取新码",
+  PASSWORD_RESET_UNAVAILABLE: "暂时无法确认重置结果，请先尝试使用新密码登录，再联系管理员核对",
+  PASSWORD_RESET_RATE_LIMITED: "重置尝试过多，请稍后再试",
+  PASSWORD_RESET_NOT_AVAILABLE: "当前网络未开启此密码恢复方式，请联系平台管理员",
+  PASSWORD_RESET_BODY_REQUIRED: "请在本网络页面手动输入重置码，不要把码加入网址",
+  PASSWORD_CONFIRMATION_INVALID: "两次输入的新密码不一致",
   AUTH_CONFIG_CHANGED: "登录设置已被其他管理员修改，请刷新核对，草稿不会自动覆盖新版本",
   AUTH_CONFIG_VERSION_REQUIRED: "缺少配置版本，请刷新登录设置后保存",
   AUTH_CONFIG_INVALID: "登录配置无效，请核对应用凭据、字段及公网 HTTPS 地址",
