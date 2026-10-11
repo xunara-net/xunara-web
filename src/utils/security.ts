@@ -5,7 +5,6 @@ export function splitAccountSessions(sessions: AccountSession[], currentId: stri
   active.sort((first, second) => Number(second.id === currentId) - Number(first.id === currentId));
   return {
     active,
-    history: sessions.filter((item) => item.status !== "active"),
     otherCount: active.filter((item) => item.id !== currentId).length,
   };
 }
@@ -23,6 +22,8 @@ export function revokedReasonLabel(reason?: string): string {
     "signed out other sessions": "退出其他登录",
     "signed out one session": "单独退出",
     "password changed": "修改密码后退出",
+    "password reset": "密码重置后退出",
+    "account disabled by platform": "账号被管理员禁用",
     "identity unlinked": "第三方账号解绑后退出",
     rotated: "会话已轮换",
     logout: "主动退出",
@@ -30,6 +31,25 @@ export function revokedReasonLabel(reason?: string): string {
     "revoked through the platform API": "通过接口撤销",
   };
   return reason ? labels[reason] ?? reason : "已退出";
+}
+
+// UA 是客户端自报文本，只作友好标签；不推断地理位置、真实硬件或可信设备。
+export function sessionClientLabel(userAgent?: string): string {
+  if (!userAgent) return "未记录客户端";
+  const browsers: [RegExp, string][] = [
+    [/MicroMessenger\//i, "微信内置浏览器"], [/QQBrowser\//i, "QQ 浏览器"],
+    [/SamsungBrowser\//i, "三星浏览器"], [/Edg(?:e|A|iOS)?\//i, "Edge"],
+    [/OPR\//i, "Opera"], [/\bwv\b/i, "Android WebView"],
+    [/(?:Chrome|CriOS)\//i, "Chrome"], [/(?:Firefox|FxiOS)\//i, "Firefox"],
+    [/Version\/[^ ]+.*Safari\//i, "Safari"],
+  ];
+  const systems: [RegExp, string][] = [
+    [/Android/i, "Android"], [/(?:iPhone|iPad|iPod)/i, "iOS / iPadOS"],
+    [/Windows/i, "Windows"], [/Macintosh|Mac OS X/i, "macOS"], [/Linux/i, "Linux"],
+  ];
+  const browser = browsers.find(([pattern]) => pattern.test(userAgent))?.[1];
+  const system = systems.find(([pattern]) => pattern.test(userAgent))?.[1];
+  return [browser ?? "未知浏览器", system].filter(Boolean).join(" · ");
 }
 
 export function severityLabel(severity: string) {

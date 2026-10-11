@@ -18,6 +18,8 @@ export interface SessionInfo {
   lastSeenAt?: string;
   revokedAt?: string;
   revokedReason?: string;
+  clientIP?: string;
+  userAgent?: string;
 }
 
 export interface AccountSession extends SessionInfo {
@@ -40,6 +42,9 @@ export interface AccountSessionsPayload {
     status: AccountSession["status"];
     revoked_at?: string;
     revoked_reason?: string;
+    last_seen_at?: string;
+    client_ip?: string;
+    user_agent?: string;
   }[];
   current_session_id: string;
   csrf_token: string;
@@ -49,6 +54,17 @@ export interface AccountSessionsPayload {
 export interface SessionRevocationResult {
   revoked_sessions: number;
   current_revoked: boolean;
+}
+
+export interface AccountLoginRecord extends AccountSession {
+  kind: "login" | "rotation" | "legacy";
+}
+
+export interface AccountLoginHistory {
+  records: AccountLoginRecord[];
+  nextCursor: string;
+  currentSessionId: string;
+  generatedAt: string;
 }
 
 export interface SecurityFinding {

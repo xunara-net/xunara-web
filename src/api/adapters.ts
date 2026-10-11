@@ -12,22 +12,20 @@ import type {
   User,
   UserPayload,
 } from "./types";
+import { parseAccountSession, sessionTimestamp } from "./account-sessions";
 
 export function toAccountSessions(payload: AccountSessionsPayload): AccountSessions {
   // 账户列表以服务端状态为准，不把读取失败或缺失字段转换成“没有登录”。
+  if (!payload || !Array.isArray(payload.sessions) || typeof payload.current_session_id !== "string" ||
+      !payload.current_session_id || typeof payload.csrf_token !== "string" || !payload.csrf_token ||
+      !sessionTimestamp(payload.generated_at)) {
+    throw new Error("活动登录响应格式无效，请刷新重试。");
+  }
   return {
     currentSessionId: payload.current_session_id,
     csrfToken: payload.csrf_token,
     generatedAt: payload.generated_at,
-    sessions: payload.sessions.map((item) => ({
-      id: item.id,
-      authMethod: item.auth_method,
-      createdAt: item.created_at,
-      expiresAt: item.expires_at,
-      status: item.status,
-      revokedAt: item.revoked_at,
-      revokedReason: item.revoked_reason,
-    })),
+    sessions: payload.sessions.map(parseAccountSession),
   };
 }
 

@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import * as ep from "../api/endpoints";
 import { ApiError, errorMessage } from "../api/client";
 import type { AccountSession, AccountSessions, SecuritySnapshot } from "../api/types";
 import { session } from "../store";
 import PageHeader from "../components/PageHeader.vue";
-import DataTable from "../components/DataTable.vue";
 import StatCard from "../components/StatCard.vue";
 import AccountPasskeys from "../components/AccountPasskeys.vue";
 import AccountIdentities from "../components/AccountIdentities.vue";
+import AccountLoginHistory from "../components/AccountLoginHistory.vue";
 import { formatTime, relativeTime } from "../utils/format";
-import { authMethodLabel, revokedReasonLabel, securityFindingText, severityLabel, splitAccountSessions } from "../utils/security";
+import { authMethodLabel, sessionClientLabel, securityFindingText, severityLabel, splitAccountSessions } from "../utils/security";
 
 const router = useRouter();
 const loading = ref(true);
 const error = ref("");
 const accountSessions = ref<AccountSessions | null>(null);
 const busy = ref("");
+const historyRefresh = ref(0);
+let disposed = false;
+onBeforeUnmount(() => { disposed = true; });
 const securityLoading = ref(true);
 const securityError = ref("");
 const snapshot = ref<SecuritySnapshot | null>(null);
@@ -30,7 +33,7 @@ const findings = computed(() => (snapshot.value?.findings ?? []).map((finding) =
 onMounted(() => Promise.all([loadSessions(), loadSecurity()]));
 
 async function handleExpiredSession(err: unknown) {
-  if (err instanceof ApiError && err.status === 401) {
+  if (!disposed && err instanceof ApiError && err.status === 401) {
     session.forget();
     await router.replace({ name: "login", query: { return_to: "/security" } });
   }
@@ -41,13 +44,17 @@ async function loadSessions() {
   loading.value = true;
   error.value = "";
   try {
-    accountSessions.value = await ep.getAccountSessions();
+    const payload = await ep.getAccountSessions();
+    if (disposed) return;
+    accountSessions.value = payload;
+    historyRefresh.value++;
   } catch (err) {
+    if (disposed) return;
     accountSessions.value = null;
     error.value = errorMessage(err);
     await handleExpiredSession(err);
   } finally {
-    loading.value = false;
+    if (!disposed) loading.value = false;
   }
 }
 
@@ -55,13 +62,16 @@ async function loadSecurity() {
   securityLoading.value = true;
   securityError.value = "";
   try {
-    snapshot.value = await ep.getSecurity();
+    const payload = await ep.getSecurity();
+    if (disposed) return;
+    snapshot.value = payload;
   } catch (err) {
+    if (disposed) return;
     snapshot.value = null;
     securityError.value = errorMessage(err);
     await handleExpiredSession(err);
   } finally {
-    securityLoading.value = false;
+    if (!disposed) securityLoading.value = false;
   }
 }
 
@@ -100,9 +110,6 @@ async function revoke(target: AccountSession | "others" | "all") {
     <template #actions><RouterLink class="btn" to="/settings">修改密码</RouterLink></template>
   </PageHeader>
 
-  <AccountIdentities />
-  <AccountPasskeys />
-
   <div class="card">
     <div class="card-head session-head">
       <div><h2>活动登录 <span v-if="accountSessions" class="badge primary">{{ grouped.active.length }}</span></h2></div>
@@ -113,44 +120,28 @@ async function revoke(target: AccountSession | "others" | "all") {
       </div>
     </div>
     <div v-if="error" class="alert error session-feedback" role="alert">{{ error }}</div>
-    <DataTable v-if="!error || accountSessions" :columns="[
-      { key: 'id', title: '登录会话' },
-      { key: 'authMethod', title: '登录方式' },
-      { key: 'createdAt', title: '登录时间' },
-      { key: 'expiresAt', title: '到期时间' },
-      { key: 'actions', title: '操作', align: 'right' },
-    ]" :rows="grouped.active" :loading="loading" row-key="id" empty-title="没有活动登录" empty-desc="刷新列表或重新登录后再试。">
-      <template #cell-id="{ row }">
-        <div>{{ row.id === accountSessions?.currentSessionId ? '当前浏览器' : '其他登录会话' }} <span v-if="row.id === accountSessions?.currentSessionId" class="badge success">当前</span></div>
-        <div class="hint mono" :title="row.id">{{ row.id.slice(0, 12) }}…</div>
-      </template>
-      <template #cell-authMethod="{ row }">{{ authMethodLabel(row.authMethod) }}</template>
-      <template #cell-createdAt="{ row }"><span :title="formatTime(row.createdAt)">{{ relativeTime(row.createdAt) }}</span></template>
-      <template #cell-expiresAt="{ row }">{{ formatTime(row.expiresAt) }}</template>
-      <template #cell-actions="{ row }">
-        <button class="btn small danger" :disabled="disabled" @click="revoke(row)">{{ busy === row.id ? '正在退出…' : row.id === accountSessions?.currentSessionId ? '退出当前登录' : '退出此登录' }}</button>
-      </template>
-    </DataTable>
-    <div class="card-body session-note">这里只管理本账户的控制台登录，不影响其他用户。怀疑密码泄露时，还应<RouterLink to="/settings">修改密码</RouterLink>。当前未采集浏览器型号与来源位置。</div>
+    <div v-if="loading" class="page-loading" role="status">正在读取活动登录…</div>
+    <div v-else-if="accountSessions" class="card-body session-list">
+      <p v-if="!grouped.active.length" class="session-note">没有活动登录，请刷新列表或重新登录。</p>
+      <article v-for="row in grouped.active" :key="row.id" class="session-card">
+        <div class="session-card-head">
+          <div><strong>{{ sessionClientLabel(row.userAgent) }}</strong> <span v-if="row.id === accountSessions.currentSessionId" class="badge success">当前浏览器</span></div>
+          <button class="btn small danger" :disabled="disabled" @click="revoke(row)">{{ busy === row.id ? '正在退出…' : row.id === accountSessions.currentSessionId ? '退出当前登录' : '退出此登录' }}</button>
+        </div>
+        <div class="session-note">{{ authMethodLabel(row.authMethod) }} · <span class="mono">{{ row.clientIP || '来源 IP 未记录' }}</span></div>
+        <dl class="session-facts">
+          <div><dt>登录时间</dt><dd>{{ formatTime(row.createdAt) }}</dd></div>
+          <div><dt>最近活动</dt><dd :title="formatTime(row.lastSeenAt)">{{ row.lastSeenAt ? relativeTime(row.lastSeenAt) : '未记录' }}</dd></div>
+          <div><dt>到期时间</dt><dd>{{ formatTime(row.expiresAt) }}</dd></div>
+        </dl>
+      </article>
+    </div>
+    <div class="card-body session-note">这里只管理本账户的控制台登录，不影响组网设备和其他用户。浏览器 / 系统为客户端自报，来源 IP 不代表地理位置；旧来源未记录时不会补猜。最近活动按分钟更新，不延长有效期。怀疑密码泄露时，还应<RouterLink to="/settings">修改密码</RouterLink>。</div>
   </div>
 
-  <details v-if="accountSessions && grouped.history.length" class="card session-history">
-    <summary>已失效的登录记录 <span class="badge">{{ grouped.history.length }}</span></summary>
-    <div class="card-body session-note">这些登录已退出或过期，无须再次撤销。仅展示服务端仍保留的会话记录，不代表完整登录历史。</div>
-    <DataTable :columns="[
-      { key: 'authMethod', title: '登录方式' },
-      { key: 'createdAt', title: '登录时间' },
-      { key: 'status', title: '状态' },
-      { key: 'endedAt', title: '失效时间' },
-      { key: 'revokedReason', title: '原因' },
-    ]" :rows="grouped.history" row-key="id">
-      <template #cell-authMethod="{ row }">{{ authMethodLabel(row.authMethod) }}</template>
-      <template #cell-createdAt="{ row }">{{ formatTime(row.createdAt) }}</template>
-      <template #cell-status="{ row }"><span class="badge">{{ row.status === 'expired' ? '已过期' : '已退出' }}</span></template>
-      <template #cell-endedAt="{ row }">{{ formatTime(row.revokedAt || row.expiresAt) }}</template>
-      <template #cell-revokedReason="{ row }">{{ row.status === 'expired' ? '会话到期' : revokedReasonLabel(row.revokedReason) }}</template>
-    </DataTable>
-  </details>
+  <AccountLoginHistory :refresh-key="historyRefresh" />
+  <AccountIdentities />
+  <AccountPasskeys />
 
   <div class="card">
     <div class="card-head"><h2>网络安全概览</h2><button class="btn small" :disabled="securityLoading" @click="loadSecurity">刷新</button></div>
@@ -185,7 +176,13 @@ async function revoke(target: AccountSession | "others" | "all") {
 .session-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .session-feedback { margin: 16px 18px; }
 .session-note { color: var(--text-muted); font-size: 12.5px; line-height: 1.8; }
-.session-history summary { padding: 16px 18px; cursor: pointer; font-weight: 600; }
+.session-list { padding-top: 0; padding-bottom: 0; }
+.session-card { padding: 16px 0; border-top: 1px solid var(--border); min-width: 0; }
+.session-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.session-card .session-note { margin-top: 8px; overflow-wrap: anywhere; }
+.session-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; }
+.session-facts dt { color: var(--text-muted); font-size: 12px; }
+.session-facts dd { margin: 4px 0 0; font-size: 13px; overflow-wrap: anywhere; }
 .security-stats { margin-bottom: 20px; }
 .security-stats > .card { margin-top: 0; box-shadow: none; }
 .security-facts { margin-bottom: 20px; }
@@ -193,4 +190,9 @@ async function revoke(target: AccountSession | "others" | "all") {
 .finding { padding: 14px 0; border-top: 1px solid var(--border); }
 .finding-head { display: flex; align-items: baseline; gap: 8px; }
 .finding p { margin: 8px 0; color: var(--text-muted); line-height: 1.8; }
+@media (max-width: 640px) {
+  .session-facts { grid-template-columns: 1fr; gap: 8px; }
+  .session-facts > div { display: flex; justify-content: space-between; gap: 12px; }
+  .session-facts dd { margin: 0; text-align: right; }
+}
 </style>
