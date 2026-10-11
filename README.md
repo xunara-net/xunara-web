@@ -123,6 +123,12 @@ Session 清理而丢失。失败保留上次成功页且明确提示，不把错
 活动按分钟记录，不代表实时在线，不延长过期时间。服务端升级与保留边界以
 [登录记录说明](https://github.com/xunara-net/xunara-server/blob/main/docs/account-login-history.md)为准。
 
+个人设置的「个人数据导出」默认折叠：本人账户安全资料 JSON 或成功登录记录 CSV，
+可选择日期并明确确认保管责任。等待可取消，错误 / 超限不生成文件，离页取消，
+Blob URL 及时清理；私人内容不入浏览器持久存储。日期按浏览器时区包含结束当天，
+仅筛选历史；旧服务端明确提示升级。白名单、限额、CSV 前缀、准备审计及尚未交付
+的网络导出以[服务端说明](https://github.com/xunara-net/xunara-server/blob/main/docs/account-security-export.md)为准。
+
 网络安全概览展示设备审批、密钥到期、策略和中继配置状态，以及中文安全提示，
 不再向普通用户输出原始 JSON。读取失败单独报错；未发现提示不等于安全认证，
 已配置中继区域也不等于实时健康。退出登录不修改密码或撤销 API Key。

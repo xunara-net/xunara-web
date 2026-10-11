@@ -28,10 +28,11 @@ type RequestOptions = {
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
+  redirect?: RequestRedirect;
 };
 
-/** api performs one JSON request against the control plane. */
-export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function requestAPI<T>(path: string, options: RequestOptions, read: (response: Response) => Promise<T>): Promise<T> {
   const url = new URL(path, window.location.origin);
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
@@ -41,25 +42,33 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     method: options.method ?? "GET",
     credentials: "same-origin",
     headers: { Accept: "application/json", ...options.headers },
+    redirect: options.redirect,
   };
   const controller = new AbortController();
   init.signal = controller.signal;
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) controller.abort();
   if (options.body !== undefined) {
     init.headers = { ...init.headers, "Content-Type": "application/json" };
     init.body = JSON.stringify(options.body);
   }
   const timeout = setTimeout(() => controller.abort(), 30000);
 
-  let resp: Response;
-  let text: string;
   try {
-    resp = await fetch(url, init);
-    if (resp.status === 204) return undefined as T;
-    text = await resp.text();
+    const response = await fetch(url, init);
+    return await read(response);
   } catch (err) {
+    if (options.signal?.aborted) throw new DOMException("Request cancelled", "AbortError");
     if (controller.signal.aborted) throw new ApiError(408, "REQUEST_TIMEOUT: request outcome is unknown; refresh before submitting again");
     throw err;
-  } finally { clearTimeout(timeout); }
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", cancel);
+  }
+}
+
+function parseAPIResponse(text: string): any {
   let payload: any = undefined;
   if (text) {
     try {
@@ -69,14 +78,66 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     }
   }
 
-  if (!resp.ok) {
-    const message =
-      payload?.message ?? payload?.error ?? (text ? text.slice(0, 200) : `HTTP ${resp.status}`);
-    const code = typeof payload?.code === "string" ? payload.code : "";
-    throw new ApiError(resp.status, message, code);
+  return payload;
+}
+
+function failedAPIResponse(response: Response, text: string): ApiError {
+  const payload = parseAPIResponse(text);
+  const message = payload?.message ?? payload?.error ?? (text ? text.slice(0, 200) : `HTTP ${response.status}`);
+  return new ApiError(response.status, message, typeof payload?.code === "string" ? payload.code : "");
+}
+
+/** api performs one JSON request against the control plane. */
+export function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return requestAPI(path, options, async (response) => {
+    if (response.status === 204) return undefined as T;
+    const text = await response.text();
+    if (!response.ok) throw failedAPIResponse(response, text);
+    const payload = parseAPIResponse(text);
+    if (payload === undefined) throw new ApiError(502, "API_RESPONSE_INVALID: expected a JSON response");
+    return payload as T;
+  });
+}
+
+export interface DownloadResponse {
+  blob: Blob;
+  headers: Headers;
+}
+
+// 文件和 JSON 共用超时 / 错误策略；实际读取也有字节上限，不信任 Content-Length。
+export function apiDownload(path: string, options: RequestOptions, maxBytes: number): Promise<DownloadResponse> {
+  if (new URL(path, window.location.origin).origin !== window.location.origin || !Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    return Promise.reject(new ApiError(400, "INVALID_ACCOUNT_EXPORT: invalid private download target or bound"));
   }
-  if (payload === undefined) throw new ApiError(502, "API_RESPONSE_INVALID: expected a JSON response");
-  return payload as T;
+  return requestAPI(path, { ...options, redirect: "error" }, async (response) => {
+    // 浏览器会自动解压；压缩传输的长度不能与解压后的私人文件比较。
+    const encoding = response.headers.get("Content-Encoding")?.trim().toLowerCase();
+    const length = !encoding || encoding === "identity" ? response.headers.get("Content-Length") : null;
+    if (length !== null && (!/^\d+$/.test(length) || Number(length) > maxBytes)) {
+      await response.body?.cancel();
+      throw new ApiError(413, "ACCOUNT_EXPORT_TOO_LARGE: download exceeds the byte limit");
+    }
+    const reader = response.body?.getReader();
+    if (!reader) throw new ApiError(502, "API_RESPONSE_INVALID: missing download body");
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const result = await reader.read();
+        if (result.done) break;
+        total += result.value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel();
+          throw new ApiError(413, "ACCOUNT_EXPORT_TOO_LARGE: download exceeds the byte limit");
+        }
+        chunks.push(result.value);
+      }
+    } finally { reader.releaseLock(); }
+    const blob = new Blob(chunks, { type: response.headers.get("Content-Type") ?? "" });
+    if (!response.ok) throw failedAPIResponse(response, await blob.text());
+    if (!total || length !== null && Number(length) !== total) throw new ApiError(502, "API_RESPONSE_INVALID: incomplete download");
+    return { blob, headers: response.headers };
+  });
 }
 
 /** errorMessage renders any thrown value for a person. */
@@ -84,7 +145,7 @@ export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     const code = err.errorCode;
     // 新历史接口只给可执行的读取建议；保留既有错误的展示契约。
-    if (code === "LOGIN_HISTORY_FAILED" || code === "INVALID_LOGIN_HISTORY_PAGE") {
+    if (code === "LOGIN_HISTORY_FAILED" || code === "INVALID_LOGIN_HISTORY_PAGE" || code.startsWith("ACCOUNT_EXPORT_") || code === "INVALID_ACCOUNT_EXPORT") {
       return `${humanizeCode(code)}（${code}）`;
     }
     return code ? `${humanizeCode(code)}（${err.message}）` : err.message;
@@ -94,6 +155,10 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  ACCOUNT_EXPORT_UNAVAILABLE: "暂时无法准备导出，未生成下载文件；请稍后显式重试",
+  ACCOUNT_EXPORT_TOO_LARGE: "数据超过导出上限，请缩小登录记录日期范围或联系管理员；不会截断记录",
+  ACCOUNT_EXPORT_RATE_LIMITED: "导出请求过多，请等待约 15 分钟后重试",
+  INVALID_ACCOUNT_EXPORT: "导出格式或日期范围无效，请检查输入",
   PASSWORD_RESET_INVALID: "重置码无效、过期、已使用或不属于此网络，请联系平台管理员获取新码",
   PASSWORD_RESET_UNAVAILABLE: "暂时无法确认重置结果，请先尝试使用新密码登录，再联系管理员核对",
   PASSWORD_RESET_RATE_LIMITED: "重置尝试过多，请稍后再试",

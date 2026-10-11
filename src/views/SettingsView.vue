@@ -6,6 +6,7 @@ import { ApiError, errorMessage } from "../api/client";
 import type { AccountInfo } from "../api/types";
 import { session } from "../store";
 import PageHeader from "../components/PageHeader.vue";
+import AccountExport from "../components/AccountExport.vue";
 import { roleLabel } from "../utils/format";
 import { passwordChangeError } from "../utils/account";
 
@@ -182,6 +183,8 @@ async function savePassword() {
       </div>
     </div>
   </div>
+
+  <AccountExport v-if="account && !loading && !loadError" :user-id="account.user.id" :csrf-token="account.csrfToken" :disabled="profileBusy || passwordBusy" @expired="handleExpiredSession" />
 
   <div class="card">
     <div class="card-head"><h2>本部署支持的能力</h2></div>
