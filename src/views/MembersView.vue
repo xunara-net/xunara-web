@@ -85,6 +85,7 @@ async function changeRole(user: User, event: Event) {
       <template #cell-displayName="{ row }">
         <div>{{ row.displayName || row.loginName }}</div>
         <div class="mono" style="color: var(--text-faint); font-size: 12px">{{ row.loginName }}</div>
+        <span v-if="row.disabled === true" class="badge danger" title="请联系平台管理员；修改角色不会解禁账号">已禁用</span>
       </template>
       <template #cell-email="{ row }">{{ row.email || "—" }}</template>
       <template #cell-createdAt="{ row }">{{ formatTime(row.createdAt) }}</template>
@@ -95,7 +96,7 @@ async function changeRole(user: User, event: Event) {
           style="width: 120px"
           :value="row.role"
           :disabled="loading || busy || conflict || !hasMemberVersion(row) || isLastOwner(row, users)"
-          :title="isLastOwner(row, users) ? '至少保留一名所有者，请先授予另一名成员所有者角色' : !hasMemberVersion(row) ? '请刷新或升级服务端以确认成员版本' : '修改成员角色'"
+          :title="isLastOwner(row, users) ? '至少保留一名启用的所有者，请先授予另一名可登录成员所有者角色' : !hasMemberVersion(row) ? '请刷新或升级服务端以确认成员版本' : '修改成员角色'"
           @change="changeRole(row, $event)"
         >
           <option value="owner">所有者</option>

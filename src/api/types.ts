@@ -6,6 +6,8 @@ export interface User {
   role: "owner" | "admin" | "member" | "viewer" | string;
   createdAt?: string;
   updatedAt?: string;
+  disabled?: boolean;
+  disabledAt?: string;
 }
 
 export interface SessionInfo {

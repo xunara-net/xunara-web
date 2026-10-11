@@ -6,7 +6,7 @@ export function canManageMemberRoles(role: string | undefined): boolean {
 }
 
 export function isLastOwner(user: User, users: readonly User[]): boolean {
-  return user.role === "owner" && users.filter((member) => member.role === "owner").length === 1;
+  return user.role === "owner" && user.disabled !== true && users.filter((member) => member.role === "owner" && member.disabled !== true).length === 1;
 }
 
 export function hasMemberVersion(user: User): boolean {

@@ -26,6 +26,13 @@ describe("member role boundaries", () => {
     expect(member.updatedAt).toBe(updatedAt);
   });
 
+  it("does not count a disabled owner as an available recovery owner", () => {
+    const active = { ...owner, disabled: false };
+    const disabled = { ...owner, id: 2, disabled: true };
+    expect(isLastOwner(active, [active, disabled])).toBe(true);
+    expect(isLastOwner(disabled, [active, disabled])).toBe(false);
+  });
+
   it("does not invent versions or offer unsupported roles", () => {
     for (const updatedAt of [undefined, "", "invalid"]) {
       const member = { ...owner, updatedAt };
