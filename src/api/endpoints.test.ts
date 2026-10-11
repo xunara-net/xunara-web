@@ -94,6 +94,15 @@ describe("control plane response contracts", () => {
     expect(await endpoints.getProviders()).toEqual(methods);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://alice.example.test/api/v1/auth/providers");
   });
+  it("keeps member invitations visible while public independent tenant signup is closed", async () => {
+    const methods = { providers: [], local_login: true, setup_required: false, passkeys: false,
+      registration: "closed", member_registration: "invite", member_invitations: true,
+      self_service: { endpoint: "/api/self-service/v1/signup" } };
+    respond(methods);
+    expect(await endpoints.getProviders()).toEqual(methods);
+    respond({ ...methods, member_invitations: "true" });
+    await expect(endpoints.getProviders()).rejects.toThrow("登录方式响应格式无效");
+  });
 
   it.each([undefined, null, {}, { providers: [] }])("rejects incomplete provider policy %j", async (payload) => {
     respond(payload);
@@ -248,6 +257,8 @@ describe("control plane response contracts", () => {
   it("loads owner invitations without inventing a missing registration policy", async () => {
     respond({ items: [], enabled: true, registration_url: "/register", csrf_token: "fixture-csrf" });
     expect(await endpoints.getMemberInvitations()).toMatchObject({ items: [], enabled: true, csrf_token: "fixture-csrf" });
+    respond({ items: [], enabled: true, registration_url: "/register?mode=invite", csrf_token: "fixture-csrf" });
+    expect((await endpoints.getMemberInvitations()).registration_url).toBe("/register?mode=invite");
     respond({ items: [], registration_url: "/register", csrf_token: "fixture-csrf" });
     await expect(endpoints.getMemberInvitations()).rejects.toThrow("邀请数据格式异常");
   });

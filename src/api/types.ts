@@ -408,6 +408,8 @@ export interface SelfServiceInfo {
 
 /** What this deployment offers before anybody has signed in. */
 export interface ProvidersPayload {
+	member_registration?: string;
+	member_invitations?: boolean;
 	registration_token?: string;
   providers: { id: string; name: string; start_url: string }[];
   local_login: boolean;

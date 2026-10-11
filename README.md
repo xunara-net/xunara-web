@@ -56,6 +56,13 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 | `/plan` | 套餐、额度与能力 |
 | `/audit` | 审计日志 |
 | `/members`、`/settings` | 成员与角色、昵称/联系邮箱与密码自助管理 |
+| `/authentication` | 所有者管理成员注册方式、OAuth2/OIDC 应用、启停、密钥轮换与归档 |
+
+「成员与权限 → 注册设置」和「安全中心 → 管理第三方登录配置」均直达侧栏的
+「登录与注册」。邀请加入与独立网络公开开户分开，不再只提示联系部署管理员。
+应用密钥只在当前弹窗的一次请求中使用，提交后清空，不存浏览器、不回显。
+身份 v15 与严格配置契约需先升级服务端；配置边界以
+[服务端手册](https://github.com/xunara-net/xunara-server/blob/main/docs/authentication-settings.md)为准。
 
 ## 网络控制台
 

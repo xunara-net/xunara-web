@@ -32,8 +32,12 @@ const busy = ref(false);
 const error = ref("");
 const created = ref<TenantSignupResult | null>(null);
 
-const registration = computed(() => info.value?.registration ?? "closed");
-const selfService = computed(() => info.value?.self_service ?? null);
+// mode 只选择非敏感的成员邀请入口，不携带邀请码，也不能替代服务器声明的准入策略。
+const invitationEntry = computed(() => route.query.mode === "invite");
+const registration = computed(() => invitationEntry.value
+  ? (info.value?.member_invitations || info.value?.registration === "invite" ? "invite" : "closed")
+  : info.value?.registration ?? "closed");
+const selfService = computed(() => invitationEntry.value ? null : info.value?.self_service ?? null);
 /** open + a sign-up desk means a whole tenant is created, not a member. */
 const createsTenant = computed(() => registration.value === "open" && selfService.value !== null);
 const canRegister = computed(() => registration.value === "invite" || registration.value === "open");

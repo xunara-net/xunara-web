@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
 import type { MemberInvitations, MemberInvitation, MemberInvitationRequest } from "../api/types";
@@ -19,7 +19,7 @@ const code = ref("");
 const role = ref<MemberInvitationRequest["role"]>("member");
 const note = ref("");
 const ttl = ref(168);
-const registrationURL = `${window.location.origin}/register`;
+const registrationURL = computed(() => `${window.location.origin}${data.value?.registration_url ?? '/register?mode=invite'}`);
 const statusLabels = { pending: "待使用", redeemed: "已使用", expired: "已过期" };
 
 onMounted(load);
@@ -103,6 +103,7 @@ async function revoke(invite: MemberInvitation) {
       <h2>成员邀请</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap">
         <button class="btn small" :disabled="loading || busy" @click="load">刷新邀请</button>
+        <router-link class="btn small" to="/authentication">注册设置</router-link>
         <button class="btn primary small" :disabled="loading || busy || !data?.enabled" @click="begin">创建成员邀请</button>
       </div>
     </div>
@@ -111,7 +112,7 @@ async function revoke(invite: MemberInvitation) {
       <p v-else-if="loading" class="hint">正在读取邀请…</p>
       <template v-else-if="data">
         <p class="hint">邀请他人加入当前网络，不会创建新的网络空间。只有所有者可以管理邀请；邀请码一次有效，注册时再次检查套餐成员额度。</p>
-        <p v-if="!data.enabled" class="alert info" style="margin-top: 12px">当前租户未开启邀请码注册。已有邀请记录保留；请联系平台管理员确认注册方式。</p>
+        <p v-if="!data.enabled" class="alert info" style="margin-top: 12px">当前网络未开启成员邀请，已有记录保留。所有者可到<router-link to="/authentication">登录与注册</router-link>选择「邀请加入」，无需修改部署文件。</p>
       </template>
     </div>
     <DataTable v-if="!loadError && data" :columns="[

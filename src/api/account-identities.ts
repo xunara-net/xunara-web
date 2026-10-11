@@ -10,6 +10,8 @@ export interface AccountIdentity {
   enabled: boolean;
 }
 export interface AccountIdentities {
+	can_manage_providers?: boolean;
+	settings_url?: string;
   items: AccountIdentity[];
   providers: { id: string; name: string }[];
   csrf_token: string;

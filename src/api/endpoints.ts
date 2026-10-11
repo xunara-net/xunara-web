@@ -47,6 +47,8 @@ export const getProviders = async () => {
   if (!payload || !Array.isArray(payload.providers) || typeof payload.local_login !== "boolean" ||
       typeof payload.setup_required !== "boolean" || typeof payload.passkeys !== "boolean" ||
       !["closed", "invite", "open"].includes(payload.registration) ||
+      (payload.member_invitations !== undefined && typeof payload.member_invitations !== "boolean") ||
+      (payload.member_registration !== undefined && !["closed", "invite", "open"].includes(payload.member_registration)) ||
       payload.providers.some((provider) => !provider || typeof provider.id !== "string" || !provider.id.trim() ||
         typeof provider.name !== "string" || !provider.name.trim() || !providerLoginURL(provider.start_url, undefined, provider.id)) ||
       (payload.self_service !== undefined && (!payload.self_service || payload.self_service.endpoint !== "/api/self-service/v1/signup"))) {
@@ -97,7 +99,7 @@ export const getOrganization = () => api<Organization>("/api/v2/organization");
 export const getMemberInvitations = async () => {
   const payload = await api<MemberInvitations>("/api/v1/member-invitations");
   const items = requiredList<MemberInvitation>(payload, "items");
-  if (typeof payload.enabled !== "boolean" || !payload.csrf_token || payload.registration_url !== "/register") {
+  if (typeof payload.enabled !== "boolean" || !payload.csrf_token || !["/register", "/register?mode=invite"].includes(payload.registration_url)) {
     throw new Error("服务返回的邀请数据格式异常，请刷新重试");
   }
   return { ...payload, items };

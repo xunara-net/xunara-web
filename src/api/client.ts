@@ -90,6 +90,17 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  AUTH_CONFIG_CHANGED: "登录设置已被其他管理员修改，请刷新核对，草稿不会自动覆盖新版本",
+  AUTH_CONFIG_VERSION_REQUIRED: "缺少配置版本，请刷新登录设置后保存",
+  AUTH_CONFIG_INVALID: "登录配置无效，请核对应用凭据、字段及公网 HTTPS 地址",
+  AUTH_CONFIG_UNAVAILABLE: "暂时无法读取或保存登录设置，请稍后刷新核对实际结果",
+  PROVIDER_ID_RESERVED: "此提供方 ID 已被使用或归档，请选择新的 ID",
+  PROVIDER_ARCHIVED: "此提供方已归档，不能复用，请创建新的 ID",
+  PROVIDER_NOT_FOUND: "登录提供方已不存在，请刷新列表",
+  DEPLOYMENT_PROVIDER: "部署配置的提供方只能在此启停，身份域变更请创建新 ID",
+  PLATFORM_REQUIRED: "独立网络公开开户仅可由平台管理员管理",
+  OWNER_REQUIRED: "只有网络所有者可以管理邀请和登录配置",
+  REGISTRATION_CLOSED: "平台已关闭公开开户，请联系管理员",
   LAST_LOGIN_METHOD: "不能解绑最后一种可用登录方式，请先设置另一种登录方式",
   IDENTITIES_UNAVAILABLE: "无法读取或保存第三方绑定，请刷新后重试",
   IDENTITY_NOT_FOUND: "绑定不存在或不属于当前账户，请刷新列表",
@@ -117,8 +128,7 @@ const codeMessages: Record<string, string> = {
   DEVICE_LIMIT_REACHED: "当前套餐的设备数已达上限，升级套餐后可继续添加设备",
   AUTH_KEY_LIMIT_REACHED: "预授权密钥数量已达上限，请删除不再使用的密钥或升级套餐",
   USER_LIMIT_REACHED: "成员数量已达上限，请升级套餐",
-  OWNER_REQUIRED: "只有网络所有者可以管理成员邀请",
-  INVITATIONS_DISABLED: "当前租户未开启邀请码注册，请联系平台管理员",
+  INVITATIONS_DISABLED: "当前网络未开启成员邀请，请由所有者在「登录与注册」调整准入策略",
   INVITATIONS_UNAVAILABLE: "暂时无法读取或管理邀请，请稍后重试",
   INVITATION_NOT_FOUND: "邀请不存在，可能已被撤销，请刷新列表",
   INVITATION_USED: "此邀请已使用，记录不能撤销",

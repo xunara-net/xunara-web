@@ -41,6 +41,7 @@ const groups = computed(() => [
     title: "账户",
     items: [
       { to: "/members", label: "成员与权限", icon: "members" },
+      ...(session.state.user?.role === "owner" ? [{ to: "/authentication", label: "登录与注册", icon: "shield" }] : []),
       { to: "/settings", label: "个人设置", icon: "settings" },
     ],
   },
@@ -92,6 +93,7 @@ function routeName(name: string): string {
     topology: "拓扑与连接",
     permissions: "访问权限",
     members: "成员与权限",
+    authentication: "登录与注册",
     dns: "DNS",
     routes: "路由与出口",
     relays: "我的中继",
