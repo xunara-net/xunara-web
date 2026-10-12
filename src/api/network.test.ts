@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getDERP, listExitNodes, listRoutes, listUsers } from "./endpoints";
+import { getDERP, listRoutes, listUsers } from "./endpoints";
 import { getRelayPool } from "./network-control";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -33,7 +33,7 @@ describe("network API contracts", () => {
   });
 
   it("does not interpret missing list fields as zero resources", async () => {
-    for (const load of [listRoutes, listExitNodes, listUsers]) {
+    for (const load of [listRoutes, listUsers]) {
       response({});
       await expect(load()).rejects.toThrow("格式异常");
     }
@@ -43,8 +43,6 @@ describe("network API contracts", () => {
     for (const value of [[], null]) {
       response({ routes: value });
       expect(await listRoutes()).toEqual([]);
-      response({ exitNodes: value });
-      expect(await listExitNodes()).toEqual([]);
     }
   });
 

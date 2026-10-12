@@ -73,13 +73,6 @@ describe("control plane response contracts", () => {
     await endpoints.updateUser(2, { role: "admin", expectedUpdatedAt });
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ role: "admin", expectedUpdatedAt });
   });
-  it("sends the backend's route delta rather than an unsupported routes field", async () => {
-    const updated = { id: 2, approvedRoutes: ["10.1.0.0/24"] };
-    respond(updated);
-    expect(await endpoints.setMachineRoutes(2, { approve: ["10.1.0.0/24"], unapprove: ["10.0.0.0/24"] })).toEqual(updated);
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ approve: ["10.1.0.0/24"], unapprove: ["10.0.0.0/24"] });
-  });
-
   it.each([endpoints.listMachines, endpoints.listPendingDevices, endpoints.listAuthKeys, endpoints.listAPIKeys])("rejects a missing resource list instead of rendering an empty network", async (load) => {
     respond({});
     await expect(load()).rejects.toThrow("数据格式异常");

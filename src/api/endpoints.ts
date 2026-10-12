@@ -126,12 +126,6 @@ export const getMachine = (ref: string | number) => api<Machine>(`/api/v1/machin
 export const deleteMachine = (ref: string | number) =>
   api<void>(`/api/v1/machines/${encodeURIComponent(ref)}`, { method: "DELETE" });
 
-export const setMachineRoutes = (ref: string | number, changes: { approve: string[]; unapprove: string[] }) =>
-  api<Machine>(`/api/v1/machines/${encodeURIComponent(ref)}/routes`, {
-    method: "POST",
-    body: changes,
-  });
-
 export const listPendingDevices = async (): Promise<PendingDevice[]> =>
   requiredList(await api<unknown>("/api/v1/devices"), "devices");
 
@@ -164,9 +158,6 @@ export const getDERP = async (): Promise<DERPInfo> => {
   }
   return payload;
 };
-
-export const listExitNodes = async (): Promise<unknown[]> =>
-  requiredList(await api<unknown>("/api/v2/exit-nodes"), "exitNodes");
 
 // ---- account --------------------------------------------------------------
 

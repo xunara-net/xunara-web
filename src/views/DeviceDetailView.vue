@@ -13,8 +13,9 @@ import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import AsyncSection from "../components/AsyncSection.vue";
 import DeviceConnectionPanel from "../components/DeviceConnectionPanel.vue";
+import NodeRoutePanel from "../components/NodeRoutePanel.vue";
 import { formatTime, relativeTime } from "../utils/format";
-import { authorizationLabel, canManageNetwork, routeChanges } from "../utils/devices";
+import { authorizationLabel, canManageNetwork } from "../utils/devices";
 
 const route = useRoute();
 const router = useRouter();
@@ -22,7 +23,6 @@ const router = useRouter();
 const loading = ref(true);
 const error = ref("");
 const machine = ref<Machine | null>(null);
-const routeDraft = ref<string[]>([]);
 const saving = ref(false);
 const canWrite = computed(() => canManageNetwork(session.state.user?.role));
 const addressOpen = ref(false), addressLoading = ref(false), addressError = ref(""), addressDraft = ref("");
@@ -51,7 +51,6 @@ async function saveAddress() {
 
 const announced = computed(() => machine.value?.announcedRoutes ?? []);
 const approved = computed(() => machine.value?.approvedRoutes ?? []);
-const routeOptions = computed(() => [...new Set([...announced.value, ...approved.value])]);
 
 watch(() => route.params.id, load, { immediate: true });
 
@@ -61,39 +60,14 @@ async function load() {
   loading.value = true;
   error.value = "";
   machine.value = null;
-  routeDraft.value = [];
   try {
     const result = await ep.getMachine(id);
     if (id !== String(route.params.id ?? "")) return;
     machine.value = result;
-    routeDraft.value = [...(machine.value.approvedRoutes ?? [])];
   } catch (err) {
     if (id === String(route.params.id ?? "")) error.value = errorMessage(err);
   } finally {
     if (id === String(route.params.id ?? "")) loading.value = false;
-  }
-}
-
-function toggleRoute(route: string, checked: boolean) {
-  if (checked) {
-    if (!routeDraft.value.includes(route)) routeDraft.value.push(route);
-  } else {
-    routeDraft.value = routeDraft.value.filter((r) => r !== route);
-  }
-}
-
-async function saveRoutes() {
-  if (!machine.value) return;
-  saving.value = true;
-  try {
-    if (!canWrite.value) return;
-    await ep.setMachineRoutes(machine.value.id, routeChanges(approved.value, routeDraft.value));
-    session.toast("success", "路由已更新");
-    await load();
-  } catch (err) {
-    session.toast("error", errorMessage(err));
-  } finally {
-    saving.value = false;
   }
 }
 
@@ -136,7 +110,7 @@ async function remove() {
             <div class="k">首次加入</div><div class="v">{{ formatTime(machine.created) }}</div>
             <div class="k">最后在线</div><div class="v">{{ relativeTime(machine.lastSeen) }}</div>
             <div class="k">临时设备</div><div class="v">{{ machine.ephemeral ? "是" : "否" }}</div>
-            <div class="k">出口节点</div><div class="v">{{ machine.exitNode ? "已启用" : "未启用" }}</div>
+            <div class="k">出口宣告</div><div class="v">{{ machine.exitNode ? "与批准匹配" : "尚未与批准匹配" }}</div>
           </div>
         </div>
       </div>
@@ -149,39 +123,14 @@ async function remove() {
             <div class="k">IPv6</div><div class="v mono">{{ machine.ipv6 || "—" }}</div>
             <div class="k">宣告路由</div><div class="v">{{ announced.length ? announced.join("、") : "无" }}</div>
             <div class="k">已批准路由</div><div class="v">{{ approved.length ? approved.join("、") : "无" }}</div>
-            <div class="k">实际生效路由</div><div class="v">{{ machine.effectiveRoutes?.length ? machine.effectiveRoutes.join('、') : '无（需同时宣告并批准）' }}</div>
+            <div class="k">宣告与批准交集</div><div class="v">{{ machine.effectiveRoutes?.length ? machine.effectiveRoutes.join('、') : '无（需同时宣告并批准）' }}</div>
             <div class="k">密钥有效期</div><div class="v">{{ machine.expires ? formatTime(machine.expires) : '未设置到期时间' }}</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-if="machine" class="card">
-      <div class="card-head">
-        <h2>路由审批</h2>
-        <span class="hint">设备宣告的子网路由需要批准后才会下发到网络</span>
-      </div>
-      <div class="card-body">
-        <div v-if="routeOptions.length === 0" class="empty" style="padding: 20px">
-          <div class="title">该设备没有宣告路由</div>
-          <div class="desc">在设备上运行 <code>tailscale up --advertise-routes=…</code> 后可在此批准。</div>
-        </div>
-        <template v-else>
-          <label v-for="route in routeOptions" :key="route" class="checkbox" style="margin-bottom: 10px">
-            <input
-              type="checkbox" :disabled="!canWrite || saving"
-              :checked="routeDraft.includes(route)"
-              @change="toggleRoute(route, ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="mono">{{ route }}</span>
-            <span v-if="!announced.includes(route)" class="badge warning">已不再宣告，可撤销批准</span>
-          </label>
-          <div>
-            <button v-if="canWrite" class="btn primary" :disabled="saving" @click="saveRoutes">保存路由</button>
-          </div>
-        </template>
-      </div>
-    </div>
+    <NodeRoutePanel v-if="machine" :reference="machine.stableId" @changed="load" />
   </AsyncSection>
   <ModalDialog :open="addressOpen" title="修改设备 IPv4" :busy="saving || addressLoading" @close="addressOpen = false"><form class="stack" @submit.prevent="saveAddress"><div v-if="addressError" class="alert error" role="alert">{{ addressError }}<button class="btn small" type="button" :disabled="saving" @click="addressOpen = false; load()">关闭并刷新设备</button></div><p v-if="addressLoading" role="status">正在读取实际分配网段…</p><template v-if="allocation"><p class="muted small-text">当前网段：<span class="mono">{{ allocation.ipv4_cidr }}</span>；当前 IP：{{ addressBaseline?.ipv4 }}</p><div v-if="allocation.pending" class="alert warning">网段变更尚未应用，请刷新网络配置后操作。</div><label class="field"><span class="label">新 IPv4</span><input v-model="addressDraft" class="input mono" aria-label="设备新 IPv4" :disabled="saving || allocation.pending" /></label><p class="muted small-text">只改变这一台设备的 IPv4，不改变身份、IPv6 和路由。服务器会检查占用与当前 IP 基准，此操作可能中断现有连接。</p><button class="btn primary" type="submit" :disabled="saving || allocation.pending || !allocation.can_edit_ips">{{ saving ? '正在保存…' : '确认修改 IPv4' }}</button></template></form><template #footer><button class="btn" :disabled="saving || addressLoading" @click="addressOpen = false">取消</button></template></ModalDialog>
 </template>

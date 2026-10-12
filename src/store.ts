@@ -99,6 +99,8 @@ export const session = {
   },
 
   toast(kind: Toast["kind"], text: string): void {
+    // 连续审批/复制的相同成功提示不堆叠遮住手机操作；不同结果仍独立显示。
+    if (kind === "success" && state.toasts.some((notice) => notice.kind === kind && notice.text === text)) return;
     const id = ++toastSeq;
     state.toasts.push({ id, kind, text });
     window.setTimeout(() => {

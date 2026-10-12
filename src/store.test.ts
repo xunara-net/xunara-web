@@ -17,7 +17,26 @@ beforeEach(() => {
 
 afterEach(() => {
   session.forget();
+  for (const notice of [...session.state.toasts]) session.dismiss(notice.id);
+  vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe("compact success notices", () => {
+  it("coalesces identical successes without hiding a distinct result or persisting notices", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { setTimeout: globalThis.setTimeout });
+    session.toast("success", "路由审批已保存");
+    session.toast("success", "路由审批已保存");
+    expect(session.state.toasts).toHaveLength(1);
+    session.toast("success", "其它操作已完成");
+    session.toast("error", "路由审批未保存");
+    expect(session.state.toasts).toHaveLength(3);
+    session.dismiss(session.state.toasts[0]!.id);
+    expect(session.state.toasts).toHaveLength(2);
+    vi.advanceTimersByTime(4200);
+    expect(session.state.toasts).toHaveLength(0);
+  });
 });
 
 describe("account session state", () => {
