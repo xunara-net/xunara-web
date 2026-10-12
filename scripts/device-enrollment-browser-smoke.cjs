@@ -98,7 +98,7 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     assert.equal(await dialog.getByRole('button', { name: '复制命令', exact: true }).isDisabled(), true);
     await dialog.getByRole('button', { name: '关闭', exact: true }).click(); await page.unroute('**/api/v2/auth-keys/enrollment');
     await memberPage.goto(origin + '/devices');
-    assert.equal(await memberPage.getByRole('button', { name: '立即过期', exact: false }).count(), 0);
+    assert.equal(await memberPage.getByRole('button', { name: '有效期设置', exact: false }).count(), 0);
     await memberPage.getByRole('button', { name: '添加设备', exact: true }).click();
     const memberDialog = memberPage.getByRole('dialog', { name: '添加设备', exact: true });
     await memberDialog.getByRole('checkbox', { name: '使用 Token 免网页登录', exact: true }).check();
@@ -109,12 +109,63 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     const denied = await memberPage.context().request.post(origin + '/api/v2/auth-keys/enrollment', { headers: { 'X-CSRF-Token': memberView.csrf_token }, data: { ttl_seconds: 900 } });
     assert.equal(denied.status(), 403); await memberDialog.getByRole('button', { name: '关闭', exact: true }).click();
 
+    mark('device-expiry-settings-server-clock-duration-mobile-and-local-date');
+    const lifecycle = '/api/v2/machines/smoke-1/lifecycle', settingsEndpoint = '/api/v2/machines/smoke-1/expiry';
+    const initial = await read(lifecycle);
+    const deniedExpiry = await memberPage.context().request.post(origin + settingsEndpoint, { headers: { 'X-CSRF-Token': memberView.csrf_token }, data: { revision: initial.revision, mode: 'disable' } });
+    assert.equal(deniedExpiry.status(), 403);
+    await page.goto(origin + '/devices/' + initial.machine.id);
+    const openSettings = async () => {
+      await page.getByRole('button', { name: '有效期设置', exact: true }).click();
+      dialog = page.getByRole('dialog', { name: '设备有效期设置', exact: true });
+      await dialog.getByLabel('过期方式', { exact: true }).waitFor();
+    };
+    const choose = async (mode) => dialog.getByLabel('过期方式', { exact: true }).selectOption(mode);
+    const saveSetting = async (confirmation) => {
+      await dialog.getByRole('checkbox', { name: confirmation, exact: true }).check();
+      const pending = page.waitForResponse((response) => response.url().endsWith(settingsEndpoint) && response.request().method() === 'POST');
+      await dialog.getByRole('button', { name: '保存有效期', exact: true }).click();
+      const response = await pending; assert.equal(response.status(), 200);
+      await dialog.waitFor({ state: 'detached' }); return response.json();
+    };
+    await openSettings(); await choose('schedule');
+    await dialog.getByLabel('有效期', { exact: true }).selectOption('30');
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 844 }); await noOverflow();
+      const bounds = await dialog.getByRole('button', { name: '保存有效期', exact: true }).boundingBox();
+      assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 844);
+      if (width === 390 && process.env.SMOKE_SCREENSHOT_DIR) await page.screenshot({ path: path.join(process.env.SMOKE_SCREENSHOT_DIR, 'device-expiry-mobile.png') });
+    }
+    const future = await saveSetting('确认修改此设备的密钥到期时间');
+    assert.ok(Math.abs(Date.parse(future.machine.expires) - Date.parse(future.server_time) - 30 * 86400000) < 5000);
+    await openSettings(); assert.equal(await dialog.getByLabel('有效期', { exact: true }).inputValue(), 'custom');
+    const date = dialog.getByLabel('到期时间（本地时区）', { exact: true });
+    await date.fill('2020-01-01T00:00');
+    await dialog.getByRole('status').filter({ hasText: '未来 180 天' }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: '保存有效期', exact: true }).isDisabled(), true);
+    const selectedDate = await page.evaluate(() => {
+      const value = new Date(Date.now() + 2 * 86400000); value.setSeconds(0, 0);
+      const pad = (number) => String(number).padStart(2, '0');
+      return { local: `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`, utc: value.toISOString() };
+    });
+    await date.fill(selectedDate.local);
+    const exact = await saveSetting('确认修改此设备的密钥到期时间');
+    assert.equal(Date.parse(exact.machine.expires), Date.parse(selectedDate.utc));
+
+    mark('device-expiry-disable-durable-null-and-no-duplicate-audit');
+    await openSettings(); await choose('disable');
+    await dialog.getByText('密钥不再自动过期，仅建议用于可信的服务器或路由设备。', { exact: true }).waitFor();
+    const disabled = await saveSetting('我信任此设备，确认关闭自动过期');
+    assert.equal(disabled.machine.expires, undefined); assert.equal(select.get().expiry, null);
+    const auditBefore = database.prepare("SELECT COUNT(*) AS total FROM audit_events WHERE action = 'node.expiry_disabled' AND target = 'node:smoke-1'").get().total;
+    await openSettings(); await choose('disable'); await saveSetting('我信任此设备，确认关闭自动过期');
+    assert.equal(database.prepare("SELECT COUNT(*) AS total FROM audit_events WHERE action = 'node.expiry_disabled' AND target = 'node:smoke-1'").get().total, auditBefore);
+
     mark('device-expiry-list-detail-mobile-confirmation-and-mandatory-audit-rollback');
     const view = await read('/api/v2/machines/smoke-1/lifecycle');
     const endpoint = '/api/v2/machines/smoke-1/expire';
     await page.goto(origin + '/devices/' + view.machine.id);
-    await page.getByRole('button', { name: '立即过期', exact: true }).click();
-    dialog = page.getByRole('dialog', { name: '立即使设备过期', exact: true });
+    await openSettings(); await choose('expire');
     const confirm = dialog.getByRole('button', { name: '确认立即过期', exact: true });
     await confirm.waitFor(); assert.equal(await confirm.isDisabled(), true);
     for (const width of [320, 390, 768, 1440]) { await page.setViewportSize({ width, height: 844 }); await noOverflow(); }
@@ -126,7 +177,7 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     await dialog.getByRole('alert').filter({ hasText: '不自动重试' }).waitFor();
     assert.equal(await confirm.isDisabled(), true); assert.equal(select.get().expiry, original.expiry);
     database.exec('DROP TRIGGER reject_browser_device_expiry');
-    await dialog.getByRole('button', { name: '读取最新设备状态', exact: true }).click(); await checkbox.waitFor();
+    await dialog.getByRole('button', { name: '读取最新设备状态', exact: true }).click(); await dialog.getByLabel('过期方式', { exact: true }).waitFor(); await choose('expire'); await checkbox.waitFor();
 
     mark('device-expiry-cas-no-auto-retry-reauth-warning-and-fact-preservation');
     const changedExpiry = BigInt(Date.now() + 3600000) * 1000000n;
@@ -136,17 +187,49 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     await confirm.click(); assert.equal((await conflict).status(), 409);
     await dialog.getByRole('alert').filter({ hasText: '设备身份或有效期已变化' }).waitFor();
     assert.equal(select.get().expiry, changedExpiry); assert.equal(await confirm.isDisabled(), true);
-    await dialog.getByRole('button', { name: '读取最新设备状态', exact: true }).click(); await checkbox.waitFor();
+    await dialog.getByRole('button', { name: '读取最新设备状态', exact: true }).click(); await dialog.getByLabel('过期方式', { exact: true }).waitFor(); await choose('expire'); await checkbox.waitFor();
     assert.equal(await checkbox.isChecked(), false); assert.equal(await confirm.isDisabled(), true);
     await checkbox.check(); const success = page.waitForResponse((response) => response.url().endsWith(endpoint) && response.request().method() === 'POST');
     await confirm.click(); assert.equal((await success).status(), 200); await dialog.waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: '设备已过期', exact: true }).waitFor();
+    await page.getByRole('button', { name: '有效期设置', exact: true }).waitFor();
     const updated = select.get(); assert.ok(updated.expiry < BigInt(Date.now()) * 1000000n);
     assert.deepEqual({ ...updated, expiry: original.expiry }, { ...original });
     await page.goto(origin + '/devices');
     const row = page.locator('tbody tr').filter({ hasText: view.machine.hostname });
-    assert.equal(await row.getByRole('button', { name: '立即过期 ' + view.machine.hostname, exact: true }).isDisabled(), true);
+    const entry = row.getByRole('button', { name: '有效期设置 ' + view.machine.hostname, exact: true });
+    assert.equal(await entry.isDisabled(), false);
     assert.ok(database.prepare("SELECT COUNT(*) AS total FROM audit_events WHERE action = 'node.expired' AND target = 'node:smoke-1'").get().total >= 1);
+
+    mark('device-expiry-expired-list-recovery-window-and-no-silent-renewal');
+    await entry.click(); dialog = page.getByRole('dialog', { name: '设备有效期设置', exact: true });
+    await dialog.getByRole('button', { name: '临时续期 30 分钟', exact: true }).waitFor();
+    assert.equal(await dialog.getByLabel('过期方式', { exact: true }).inputValue(), 'extend');
+    assert.deepEqual(await dialog.getByLabel('过期方式', { exact: true }).locator('option').allTextContents(), ['临时续期 30 分钟']);
+    const recovery = await read(lifecycle);
+    const bypass = await request.post(origin + settingsEndpoint, { headers: { 'X-CSRF-Token': recovery.csrf_token }, data: { revision: recovery.revision, mode: 'disable' } });
+    assert.equal(bypass.status(), 409);
+    await dialog.getByRole('checkbox', { name: '确认临时恢复此设备 30 分钟', exact: true }).check();
+    const extension = page.waitForResponse((response) => response.url().endsWith(settingsEndpoint) && response.request().method() === 'POST');
+    await dialog.getByRole('button', { name: '临时续期 30 分钟', exact: true }).click();
+    const restored = await (await extension).json();
+    assert.equal(restored.machine.expired, false);
+    assert.ok(Math.abs(Date.parse(restored.machine.expires) - Date.parse(restored.server_time) - 1800000) < 5000);
+    await dialog.waitFor({ state: 'detached' });
+    const recoveredFacts = select.get(); assert.deepEqual({ ...recoveredFacts, expiry: original.expiry }, { ...original });
+    const duplicate = await request.post(origin + settingsEndpoint, { headers: { 'X-CSRF-Token': restored.csrf_token }, data: { revision: restored.revision, mode: 'extend' } });
+    assert.equal(duplicate.status(), 409);
+
+    mark('device-expiry-clock-transition-requires-fresh-recovery-confirmation');
+    const closingWindow = await request.post(origin + settingsEndpoint, { headers: { 'X-CSRF-Token': restored.csrf_token }, data: { revision: restored.revision, mode: 'schedule', duration_seconds: 3 } });
+    assert.equal(closingWindow.status(), 200);
+    await page.goto(origin + '/devices/' + initial.machine.id); await openSettings();
+    await dialog.getByRole('alert').filter({ hasText: '设备在此期间已到期' }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: '临时续期 30 分钟', exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: '读取最新设备状态', exact: true }).click();
+    await dialog.getByRole('checkbox', { name: '确认临时恢复此设备 30 分钟', exact: true }).waitFor();
+    assert.equal(await dialog.getByRole('checkbox', { name: '确认临时恢复此设备 30 分钟', exact: true }).isChecked(), false);
+    assert.equal(await dialog.getByRole('button', { name: '临时续期 30 分钟', exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: '取消', exact: true }).click();
   } finally {
     database.exec('DROP TRIGGER IF EXISTS reject_browser_device_expiry');
     database.prepare("UPDATE nodes SET expiry = ? WHERE stable_id = 'smoke-1'").run(original.expiry);

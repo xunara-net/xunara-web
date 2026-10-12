@@ -206,6 +206,15 @@ DNS 页面在网络未初始化时提供明确的「启用 MagicDNS」确认操�
 
 ## 仓库关系
 
+设备列表/详情「有效期设置」支持 1/7/30/90/180 天、指定本地日期时间、永不
+过期和立即过期；已过期设备可显式临时续期 30 分钟，在窗口内重新认证或
+调整有效期。紧凑弹窗共用、手机页脚保持可见，修改选择后必须重新确认。
+服务器时间、持久权限和身份/有效期 CAS 为准；失败后手动读取最新状态，
+不自动重试、不让成员写入。不改变租户默认认证周期，设备密钥与 Token TTL
+独立。接口与原子审计契约以[服务端手册](https://github.com/xunara-net/xunara-server/blob/main/docs/device-enrollment.md)为准；
+时区/DST、参数与响应确认单测见 `src/utils/device-expiry.test.ts` 和
+`src/api/device-enrollment.test.ts`，真实 API/移动端见共享浏览器验收脚本。
+
 上述设备功能需要先升级[服务端事务接入版本](https://github.com/xunara-net/xunara-server/blob/main/docs/device-enrollment.md)。旧 Auth Key Cookie 写入新增 CSRF，Web 从服务端读取当前权限/额度；不把未知权限当作可以签发。Linux 命令保留 Bash pipefail，下载/安装失败不继续接入，执行使用隔离 mock 安装/CLI，Windows/macOS 未做现场执行证明。验证入口为 `npm ci && npm run typecheck && npm test && npm run build`（仓库根目录，Node 22），共享真实 API/剪贴板/手机回归见 `scripts/device-enrollment-browser-smoke.cjs`，由兄弟 Admin 仓库浏览器验收启动；不在正式站试写设备。交互与安全取舍见[简化接入提案](https://github.com/xunara-net/xunara-server/blob/main/docs/proposals/2026-10-12-simplified-device-enrollment.md)。
 
 | 仓库 | 职责 |

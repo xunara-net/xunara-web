@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEnrollmentKey, expireDevice, getDeviceLifecycle, getEnrollmentCapabilities } from "./device-enrollment";
+import { createEnrollmentKey, expireDevice, getDeviceLifecycle, getEnrollmentCapabilities, updateDeviceExpiry, type DeviceLifecycle } from "./device-enrollment";
 import { createAuthKey, deleteAuthKey } from "./endpoints";
 
 const current = { machine: { id: 42, stableId: "device-42", hostname: "home", expired: false }, revision: "a".repeat(64), csrf_token: "csrf-fixture", can_expire: true };
+const scheduled = { ...current, server_time: "2026-10-13T12:00:00Z", expiry_policy: { max_duration_seconds: 180 * 86400, extension_seconds: 1800 } };
 const capabilities = { csrf_token: "csrf-fixture", can_manage: true, used: 0, max_auth_keys: 10 };
 const issued = { id: 7, key: "tskey-auth-abcdefghijklmnopqrstuv2345", expiry: "2026-10-12T08:00:00Z", reusable: false, ephemeral: false };
 const fetchMock = vi.fn<typeof fetch>();
@@ -11,6 +12,51 @@ afterEach(() => vi.unstubAllGlobals());
 function respond(value: unknown, status = 200) { fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(value), { status })); }
 
 describe("device lifecycle and enrollment credentials", () => {
+  it("updates a duration from the server clock, with CSRF and CAS only", async () => {
+    const result = { ...scheduled, machine: { ...scheduled.machine, expires: "2026-10-14T12:00:00Z" } };
+    respond(result); expect(await updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "schedule", duration_seconds: 86400 })).toEqual(result);
+    const [url, options] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://tenant.example.test/api/v2/machines/device-42/expiry");
+    expect(options?.headers).toMatchObject({ "X-CSRF-Token": "csrf-fixture" });
+    expect(JSON.parse(String(options?.body))).toEqual({ revision: scheduled.revision, mode: "schedule", duration_seconds: 86400 });
+  });
+  it("verifies exact UTC dates, disabled expiry and the fixed recovery window", async () => {
+    const future = "2026-10-14T12:00:00Z";
+    respond({ ...scheduled, machine: { ...scheduled.machine, expires: future } });
+    await updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "schedule", expires_at: future });
+    respond(scheduled); await updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "disable" });
+    const expired = { ...scheduled, machine: { ...scheduled.machine, expired: true, expires: "2026-10-13T11:00:00Z" } };
+    respond({ ...scheduled, machine: { ...scheduled.machine, expires: "2026-10-13T12:30:00Z" } });
+    await updateDeviceExpiry("device-42", expired as DeviceLifecycle, { mode: "extend" });
+  });
+  it.each([
+    current, { ...scheduled, can_expire: false }, { ...scheduled, csrf_token: "" },
+    { ...scheduled, expiry_policy: { ...scheduled.expiry_policy, extension_seconds: 86400 } },
+  ])("rejects unconfirmed management authority before writes", async (value) => {
+    await expect(updateDeviceExpiry("device-42", value as DeviceLifecycle, { mode: "disable" })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("requires recovery for expired devices and never retries conflicts", async () => {
+    await expect(updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "extend" })).rejects.toThrow();
+    await expect(updateDeviceExpiry("device-42", { ...scheduled, machine: { ...scheduled.machine, expired: true } } as DeviceLifecycle, { mode: "disable" })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+    respond({ error: "DEVICE_CHANGED: fixture" }, 409);
+    await expect(updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "disable" })).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { ...scheduled, machine: { ...scheduled.machine, expires: "2026-10-14T12:00:00Z" } },
+    { ...scheduled, machine: { ...scheduled.machine, expired: true } },
+    current,
+  ])("does not report disabled expiry on an unconfirmed response", async (value) => {
+    respond(value); await expect(updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "disable" })).rejects.toThrow("尚未确认");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("rejects mismatched exact dates and relative duration responses", async () => {
+    const result = { ...scheduled, machine: { ...scheduled.machine, expires: "2026-10-14T13:00:00Z" } };
+    respond(result); await expect(updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "schedule", expires_at: "2026-10-14T12:00:00Z" })).rejects.toThrow("不一致");
+    respond(result); await expect(updateDeviceExpiry("device-42", scheduled as DeviceLifecycle, { mode: "schedule", duration_seconds: 86400 })).rejects.toThrow("未确认");
+  });
   it("reads a bound lifecycle snapshot and sends only its revision and CSRF", async () => {
     respond(current); expect(await getDeviceLifecycle("device-42")).toEqual(current);
     const expired = { ...current, machine: { ...current.machine, expired: true, expires: "2026-10-12T07:00:00Z" } };

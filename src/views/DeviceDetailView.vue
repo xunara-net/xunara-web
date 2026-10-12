@@ -92,7 +92,7 @@ async function remove() {
     <template #actions>
       <router-link class="btn" to="/devices">返回列表</router-link>
       <button class="btn" :disabled="loading || saving" @click="load">刷新设备</button>
-      <button v-if="canWrite" class="btn" :disabled="loading || saving || !machine || machine.expired" @click="expiryOpen = true">{{ machine?.expired ? '设备已过期' : '立即过期' }}</button>
+      <button v-if="canWrite" class="btn" :disabled="loading || saving || !machine" @click="expiryOpen = true">有效期设置</button>
       <button v-if="canWrite" class="btn danger" :disabled="loading || saving || !machine" @click="remove">删除设备</button>
     </template>
   </PageHeader>
@@ -136,6 +136,6 @@ async function remove() {
 
     <NodeRoutePanel v-if="machine" :reference="machine.stableId" @changed="load" />
   </AsyncSection>
-  <DeviceExpiryDialog v-if="machine" :open="expiryOpen" :reference="machine.stableId" @close="expiryOpen = false" @expired="machine = $event" />
+  <DeviceExpiryDialog v-if="machine" :open="expiryOpen" :reference="machine.stableId" @close="expiryOpen = false" @updated="machine = $event" />
   <ModalDialog :open="addressOpen" title="修改设备 IPv4" :busy="saving || addressLoading" @close="addressOpen = false"><form class="stack" @submit.prevent="saveAddress"><div v-if="addressError" class="alert error" role="alert">{{ addressError }}<button class="btn small" type="button" :disabled="saving" @click="addressOpen = false; load()">关闭并刷新设备</button></div><p v-if="addressLoading" role="status">正在读取实际分配网段…</p><template v-if="allocation"><p class="muted small-text">当前网段：<span class="mono">{{ allocation.ipv4_cidr }}</span>；当前 IP：{{ addressBaseline?.ipv4 }}</p><div v-if="allocation.pending" class="alert warning">网段变更尚未应用，请刷新网络配置后操作。</div><label class="field"><span class="label">新 IPv4</span><input v-model="addressDraft" class="input mono" aria-label="设备新 IPv4" :disabled="saving || allocation.pending" /></label><p class="muted small-text">只改变这一台设备的 IPv4，不改变身份、IPv6 和路由。服务器会检查占用与当前 IP 基准，此操作可能中断现有连接。</p><button class="btn primary" type="submit" :disabled="saving || allocation.pending || !allocation.can_edit_ips">{{ saving ? '正在保存…' : '确认修改 IPv4' }}</button></template></form><template #footer><button class="btn" :disabled="saving || addressLoading" @click="addressOpen = false">取消</button></template></ModalDialog>
 </template>

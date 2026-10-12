@@ -142,12 +142,12 @@ async function remove(machine: Machine) {
       <template #cell-actions="{ row }">
         <div class="row-actions">
           <router-link class="btn small" :to="`/devices/${row.id}`">详情</router-link>
-          <button v-if="canWrite" class="btn small" :aria-label="`立即过期 ${row.hostname || row.id}`" :disabled="busy[row.stableId] || row.expired" @click="expiryReference = row.stableId">{{ row.expired ? '已过期' : '立即过期' }}</button>
+          <button v-if="canWrite" class="btn small" :aria-label="`有效期设置 ${row.hostname || row.id}`" :disabled="busy[row.stableId]" @click="expiryReference = row.stableId">有效期设置</button>
           <button v-if="canWrite" class="btn small danger" :disabled="busy[row.stableId]" @click="remove(row)">删除</button>
         </div>
       </template>
     </DataTable>
   </div>
   <AddDeviceDialog :open="addOpen" @close="addOpen = false" />
-  <DeviceExpiryDialog v-if="expiryReference" :open="Boolean(expiryReference)" :reference="expiryReference" @close="expiryReference = ''" @expired="load" />
+  <DeviceExpiryDialog v-if="expiryReference" :open="Boolean(expiryReference)" :reference="expiryReference" @close="expiryReference = ''" @updated="load" />
 </template>
