@@ -1,5 +1,5 @@
 import type { ClientPlatform } from "./devices";
-import type { RouteLimits, RouteNode } from "../api/route-management";
+import type { ExitNode, RouteLimits, RouteNode } from "../api/route-management";
 
 export function validRouteAddress(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 45) return false;
@@ -18,6 +18,12 @@ export function validRoutePrefix(value: unknown): value is string {
 export const isExitPrefix = (prefix: string) => prefix === "0.0.0.0/0" || prefix === "::/0";
 export function canAddRoute(prefix: string, limits: RouteLimits): boolean {
   return isExitPrefix(prefix) ? limits.allow_exit_node : limits.allow_subnet_router;
+}
+// 两个只读快照可能跨越审批/改 IP，只有事实一致时才提示可选择，不证明真实连通。
+export function canUseExitSnapshot(node: ExitNode, current: RouteNode | undefined): boolean {
+  return Boolean(current && current.machine.stableId === node.stableId && node.online && current.machine.online &&
+    node.announced && !current.machine.expired && current.machine.effectiveRoutes?.some(isExitPrefix) &&
+    (node.ipv4 ? current.machine.ipv4 === node.ipv4 : Boolean(node.ipv6 && current.machine.ipv6 === node.ipv6)));
 }
 export function routeState(item: RouteNode, prefix: string): string {
   if (!(item.machine.approvedRoutes ?? []).includes(prefix)) return "待批准";

@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { canAddRoute, exitNodeCommand, rebaseRouteSelection, routeState, stopExitNodeCommand, validRouteAddress, validRoutePrefix } from "./route-management";
-import type { RouteNode } from "../api/route-management";
+import { canAddRoute, canUseExitSnapshot, exitNodeCommand, rebaseRouteSelection, routeState, stopExitNodeCommand, validRouteAddress, validRoutePrefix } from "./route-management";
+import type { ExitNode, RouteNode } from "../api/route-management";
 import type { Machine } from "../api/types";
 
 describe("route and local exit helpers", () => {
+  it("does not recommend an exit from mismatched approval, address or liveness snapshots", () => {
+    const node = { stableId: "exit", ipv4: "100.100.1.2", online: true, announced: true } as ExitNode;
+    const current = { revision: "a".repeat(64), machine: { stableId: "exit", ipv4: node.ipv4, online: true, expired: false, effectiveRoutes: ["0.0.0.0/0"] } as Machine };
+    expect(canUseExitSnapshot(node, current)).toBe(true);
+    expect(canUseExitSnapshot(node, undefined)).toBe(false);
+    for (const patch of [{ stableId: "replacement" }, { ipv4: "100.100.1.3" }, { online: false }, { expired: true }, { effectiveRoutes: [] }]) {
+      expect(canUseExitSnapshot(node, { ...current, machine: { ...current.machine, ...patch } })).toBe(false);
+    }
+    expect(canUseExitSnapshot({ ...node, announced: false }, current)).toBe(false);
+  });
   it.each(["0.0.0.0/0", "::/0", "10.0.0.0/8", "fd7a:115c:a1e0::/48", "100.100.1.2/32"])("accepts valid IPv4 and IPv6 prefixes %s", (prefix) => {
     expect(validRoutePrefix(prefix)).toBe(true);
   });

@@ -33,6 +33,7 @@ const validation = computed(() => {
   if (!current.value) return "";
   if (changes.value.approve.some((prefix) => !(current.value!.machine.announcedRoutes ?? []).includes(prefix))) return "新增批准中有已停止宣告的路由，请取消对应选择";
   if (changes.value.approve.some((prefix) => !canAddRoute(prefix, current.value!.limits))) return "当前套餐不允许新增所选类型的路由，可取消已有批准";
+  if (changes.value.approve.length && selection.value.some((prefix) => !canAddRoute(prefix, current.value!.limits))) return "新增批准前，请先取消当前套餐不再支持的旧批准";
   if (changes.value.approve.length && current.value.limits.max_routes >= 0 && selection.value.length > current.value.limits.max_routes) return "路由数量超过当前套餐额度，出口 IPv4/IPv6 各占一条";
   return "";
 });

@@ -6,7 +6,7 @@ import PageHeader from "../components/PageHeader.vue";
 import RouteApprovalDialog from "../components/RouteApprovalDialog.vue";
 import ExitNodeHelp from "../components/ExitNodeHelp.vue";
 import { emptyResource, type ResourceState } from "../utils/resources";
-import { isExitPrefix, routeState } from "../utils/route-management";
+import { canUseExitSnapshot, isExitPrefix, routeState } from "../utils/route-management";
 
 const loading = ref(false), search = ref(""), kind = ref("all"), status = ref("all");
 const page = ref(1), exitPage = ref(1), clientPage = ref(1), pageSize = 12;
@@ -36,14 +36,14 @@ const clientCount = computed(() => Math.max(1, Math.ceil((exits.data?.clients.le
 const visibleClients = computed(() => (exits.data?.clients ?? []).slice((clientPage.value - 1) * pageSize, clientPage.value * pageSize));
 const configurationFor = (node: ExitNode): RouteNode | undefined => routes.data?.items.find((item) => item.machine.stableId === node.stableId);
 function exitStatus(node: ExitNode): string {
-  if (!routes.data) return "路由审批详情未确认";
+  if (!configurationFor(node)) return "路由审批详情未确认";
   if (configurationFor(node)?.machine.expired) return "设备密钥过期";
   if (!node.announced) return "已批准 · 已停止宣告";
   if (!node.online) return "设备离线";
-  return "出口宣告与批准匹配";
+  return canUseExit(node) ? "出口宣告与批准匹配" : "读取期间状态变化 · 请刷新";
 }
 function canUseExit(node: ExitNode): boolean {
-  return node.online && node.announced && Boolean(node.ipv4 || node.ipv6) && Boolean(routes.data) && !configurationFor(node)?.machine.expired;
+  return canUseExitSnapshot(node, configurationFor(node));
 }
 async function load() {
   const request = ++sequence;
