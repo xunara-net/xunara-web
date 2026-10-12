@@ -8,6 +8,7 @@ import PageHeader from "../components/PageHeader.vue";
 import DataTable from "../components/DataTable.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import AddDeviceDialog from "../components/AddDeviceDialog.vue";
+import DeviceExpiryDialog from "../components/DeviceExpiryDialog.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authorizationLabel, canManageNetwork } from "../utils/devices";
 
@@ -17,6 +18,7 @@ const machines = ref<Machine[]>([]);
 const pending = ref<PendingDevice[]>([]);
 const busy = ref<Record<string, boolean>>({});
 const addOpen = ref(false);
+const expiryReference = ref("");
 const canWrite = computed(() => canManageNetwork(session.state.user?.role));
 
 const machineColumns = [
@@ -87,7 +89,7 @@ async function remove(machine: Machine) {
 </script>
 
 <template>
-  <PageHeader title="设备" desc="加入本网络的设备。新设备默认停在待审批状态，由你确认后加入。">
+  <PageHeader title="设备" desc="浏览器接入需要审批；设备预授权密钥可直接加入，仍受设备额度与访问策略约束。">
     <template #actions><button class="btn primary" @click="addOpen = true">添加设备</button><button class="btn" :disabled="loading" @click="load">刷新</button></template>
   </PageHeader>
 
@@ -140,10 +142,12 @@ async function remove(machine: Machine) {
       <template #cell-actions="{ row }">
         <div class="row-actions">
           <router-link class="btn small" :to="`/devices/${row.id}`">详情</router-link>
+          <button v-if="canWrite" class="btn small" :aria-label="`立即过期 ${row.hostname || row.id}`" :disabled="busy[row.stableId] || row.expired" @click="expiryReference = row.stableId">{{ row.expired ? '已过期' : '立即过期' }}</button>
           <button v-if="canWrite" class="btn small danger" :disabled="busy[row.stableId]" @click="remove(row)">删除</button>
         </div>
       </template>
     </DataTable>
   </div>
   <AddDeviceDialog :open="addOpen" @close="addOpen = false" />
+  <DeviceExpiryDialog v-if="expiryReference" :open="Boolean(expiryReference)" :reference="expiryReference" @close="expiryReference = ''" @expired="load" />
 </template>

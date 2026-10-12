@@ -4,6 +4,7 @@
 import { api } from "./client";
 import { toAccount, toAccountSessions, toAuditEvent, toPlan, toSnapshot } from "./adapters";
 import { providerLoginURL } from "../utils/auth";
+import { getEnrollmentCapabilities } from "./device-enrollment";
 import type {
   AccountPayload,
   AccountPasskey,
@@ -215,15 +216,22 @@ export const updateUser = (
 export const listAuthKeys = async (): Promise<AuthKey[]> =>
   requiredList(await api<unknown>("/api/v1/auth-keys"), "authKeys");
 
-export const createAuthKey = (body: {
+export const createAuthKey = async (body: {
   reusable: boolean;
   ephemeral: boolean;
   ttl?: string;
   tags?: string[];
-}) => api<{ id: number; key: string }>("/api/v1/auth-keys", { method: "POST", body });
+}) => {
+  const current = await getEnrollmentCapabilities();
+  if (!current.can_manage) throw new Error("需要网络管理员权限才能创建设备密钥");
+  return api<{ id: number; key: string }>("/api/v1/auth-keys", { method: "POST", headers: { "X-CSRF-Token": current.csrf_token }, body });
+};
 
-export const deleteAuthKey = (id: number) =>
-  api<void>(`/api/v1/auth-keys/${id}`, { method: "DELETE" });
+export const deleteAuthKey = async (id: number) => {
+  const current = await getEnrollmentCapabilities();
+  if (!current.can_manage) throw new Error("需要网络管理员权限才能撤销设备密钥");
+  return api<void>(`/api/v1/auth-keys/${id}`, { method: "DELETE", headers: { "X-CSRF-Token": current.csrf_token } });
+};
 
 export const listAPIKeys = async (): Promise<ApiKey[]> =>
   requiredList(await api<unknown>("/api/v1/api-keys"), "apiKeys");

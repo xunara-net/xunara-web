@@ -8,7 +8,7 @@ defineProps<{ title: string; desc?: string }>();
       <h1>{{ title }}</h1>
       <p v-if="desc" style="color: var(--text-muted); margin-top: 6px; font-size: 13px">{{ desc }}</p>
     </div>
-    <div style="display: flex; gap: 10px; align-items: center">
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
       <slot name="actions" />
     </div>
   </div>
