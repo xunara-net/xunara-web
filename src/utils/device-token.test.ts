@@ -17,7 +17,11 @@ describe("secure device Token command generation", () => {
       expect(command).toContain("--auth-key="); expect(command).toContain("file:"); expect(command).not.toContain(token);
       expect(command).not.toMatch(/--force-reauth|--reset|--insecure|curl -k/);
       expect(command).toContain('--hostname="home-server"');
-      if (platform === "windows") { expect(command).toContain("-AsSecureString"); expect(command).toContain("SetAccessRuleProtection"); expect(command).toContain("ZeroFreeBSTR"); }
+      if (platform === "windows") {
+        expect(command).toContain("-AsSecureString"); expect(command).toContain("SetAccessRuleProtection"); expect(command).toContain("ZeroFreeBSTR");
+        expect(command).toContain('--auth-key="file:$keyFile"'); expect(command).not.toContain('--auth-key=(');
+        expect(command).toContain("FileSystemAccessRule -ArgumentList");
+      }
       else { expect(command).toContain("stty -echo"); expect(command).toContain('chmod 600 "$key_file"'); }
     }
     expect(deviceInstallCommand("https://tenant.example.test", { ...options, platform: "android" }, permissions)).toBe("");
