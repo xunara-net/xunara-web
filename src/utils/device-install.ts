@@ -14,7 +14,7 @@ export interface DeviceInstallOptions {
 }
 export interface DeviceInstallPermissions { allowSubnetRouter: boolean; allowExitNode: boolean; maxRoutes: number; }
 
-export function deviceInstallCommand(serverURL: string, options: DeviceInstallOptions, permissions: DeviceInstallPermissions): string {
+export function deviceInstallCommand(serverURL: string, options: DeviceInstallOptions, permissions: DeviceInstallPermissions, authKey = ""): string {
   if (options.authMethod !== undefined && !["browser", "token"].includes(options.authMethod)) throw new Error("请选择浏览器或 Token 接入方式");
   if (![options.installClient, options.acceptDNS, options.acceptRoutes, options.advertiseSubnets, options.advertiseExitNode,
     permissions.allowSubnetRouter, permissions.allowExitNode].every((value) => typeof value === "boolean") ||
@@ -34,74 +34,23 @@ export function deviceInstallCommand(serverURL: string, options: DeviceInstallOp
     catch { throw new Error("子网必须是有效 IPv4 CIDR；默认路由请使用出口节点选项"); }
   }
   if (permissions.maxRoutes >= 0 && routes.length + (options.advertiseExitNode ? 2 : 0) > permissions.maxRoutes) throw new Error("宣告路由数量超出当前套餐额度（出口节点占两条默认路由）");
-  const flags = [`--accept-dns=${options.acceptDNS}`, `--accept-routes=${options.acceptRoutes}`];
+  // 只输出偏离官方 CLI 默认值的选项；Windows/macOS 默认接收路由，Linux 默认不接收。
+  const flags: string[] = [];
+  if (!options.acceptDNS) flags.push("--accept-dns=false");
+  if (options.acceptRoutes !== (options.platform !== "linux")) flags.push(`--accept-routes=${options.acceptRoutes}`);
   if (hostname) flags.push(`--hostname=${JSON.stringify(hostname)}`);
   if (routes.length) flags.push(`--advertise-routes=${JSON.stringify(routes.join(","))}`);
   if (options.advertiseExitNode) flags.push("--advertise-exit-node");
-  const login = `${base} ${flags.join(" ")}`;
   if (options.authMethod === "token") {
-    if (options.platform === "windows") return windowsTokenCommand(login);
-    return shellTokenCommand(login, options.platform === "linux" && options.installClient);
+    if (!validDeviceAuthKey(authKey)) throw new Error("请填写设备 Auth Key，或生成一次性 Token；不能使用后台令牌或 API Key");
+    flags.push(`--auth-key=${JSON.stringify(authKey)}`);
   }
+  const login = [base, ...flags].join(" ");
   if (options.platform !== "linux" || !options.installClient) return login;
-  // 先成功下载官方安装器，再执行和登录；不使用会吞掉 curl 失败的管道。
-  return `( set -eu; installer="$(mktemp)"; trap 'rm -f "$installer"' 0; curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 180 https://tailscale.com/install.sh -o "$installer"; sh "$installer"; ${login} )`;
+  // 保留官方简洁安装管道，但必须传播 curl 失败，防止安装失败后继续带密钥接入。
+  return `bash -o pipefail -c 'curl -fsSL https://tailscale.com/install.sh | sh' &&\n${login}`;
 }
 
 export function validDeviceAuthKey(value: unknown): value is string {
   return typeof value === "string" && /^tskey-auth-[A-Za-z0-9_-]{16,256}$/.test(value);
-}
-
-// 可复制命令只有隐藏输入和 file: 路径，真实密钥不会进入历史、进程参数或 URL。
-function shellTokenCommand(login: string, install: boolean, embedded?: string): string {
-  const prepare = embedded === undefined ? [
-    'terminal_state="$(stty -g < /dev/tty)"',
-    'printf "请输入设备 Auth Key（隐藏输入）：" > /dev/tty',
-    'stty -echo < /dev/tty',
-    'IFS= read -r auth_key < /dev/tty',
-    'stty "$terminal_state" < /dev/tty',
-    'terminal_state=""',
-    'printf "\\n" > /dev/tty',
-    'case "$auth_key" in tskey-auth-*) ;; *) exit 1 ;; esac',
-    'printf "%s" "$auth_key" > "$key_file"',
-    'unset auth_key',
-  ].join("\n") : `cat > "$key_file" <<'XUNARA_DEVICE_AUTH_KEY'\n${embedded}\nXUNARA_DEVICE_AUTH_KEY`;
-  const installation = install ? [
-    'curl -fsSL --proto "=https" --tlsv1.2 --connect-timeout 15 --max-time 180 https://tailscale.com/install.sh -o "$workdir/install.sh"',
-    'sh "$workdir/install.sh"',
-  ].join("\n") + "\n" : "";
-  const authorize = `${login} --auth-key=file:"$key_file"`;
-  const rootAware = login.startsWith("sudo ") ? `if [ "$(id -u)" -eq 0 ]; then\n  ${authorize.slice(5)}\nelse\n  ${authorize}\nfi` : authorize;
-  return ["(", "set +x +v", "set -eu", "umask 077", 'workdir="$(mktemp -d)"', 'chmod 700 "$workdir"',
-    'key_file="$workdir/auth.key"', 'terminal_state=""',
-    'trap \'if [ -n "$terminal_state" ]; then stty "$terminal_state" < /dev/tty; fi; rm -rf -- "$workdir"\' 0',
-    "trap 'exit 129' HUP", "trap 'exit 130' INT", "trap 'exit 143' TERM", prepare,
-    'chmod 600 "$key_file"', installation + rootAware, ")"].join("\n");
-}
-
-function windowsTokenCommand(login: string): string {
-  return ["$ErrorActionPreference = 'Stop'", "$keyDir = Join-Path ([IO.Path]::GetTempPath()) ('xunara-device-' + [guid]::NewGuid().ToString('N'))",
-    "$keyFile = Join-Path $keyDir 'auth.key'", "$buffer = [IntPtr]::Zero", "$secret = $null", "try {",
-    "  New-Item -ItemType Directory -Path $keyDir | Out-Null",
-    "  $owner = [Security.Principal.WindowsIdentity]::GetCurrent().User",
-    "  $acl = New-Object System.Security.AccessControl.DirectorySecurity",
-    "  $acl.SetAccessRuleProtection($true, $false)",
-    "  $rule = New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList $owner, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'",
-    "  $acl.AddAccessRule($rule)",
-    "  Set-Acl -LiteralPath $keyDir -AclObject $acl",
-    "  $secret = Read-Host '请输入设备 Auth Key（隐藏输入）' -AsSecureString",
-    "  $buffer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)",
-    "  [IO.File]::WriteAllText($keyFile, [Runtime.InteropServices.Marshal]::PtrToStringBSTR($buffer), (New-Object System.Text.UTF8Encoding -ArgumentList $false))",
-    `  ${login} --auth-key="file:$keyFile"`,
-    "  if ($LASTEXITCODE -ne 0) { throw '客户端接入失败，请检查地址、密钥有效期和设备额度' }", "} finally {",
-    "  if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($buffer) }",
-    "  if ($secret) { $secret.Dispose() }", "  if (Test-Path -LiteralPath $keyDir) { Remove-Item -LiteralPath $keyDir -Recurse -Force }", "}"].join("\n");
-}
-
-// 含密钥的脚本只允许显式私有下载；不要把它当作可复制终端命令显示。
-export function privateDeviceInstallScript(serverURL: string, options: DeviceInstallOptions, permissions: DeviceInstallPermissions, token: string): string {
-  if (options.platform !== "linux") throw new Error("私有一键脚本只用于 Linux；其他桌面平台使用隐藏输入命令");
-  if (!validDeviceAuthKey(token)) throw new Error("请输入设备 Auth Key（tskey-auth- 开头），不是后台令牌或 API Key");
-  const login = deviceInstallCommand(serverURL, { ...options, installClient: false, authMethod: "browser" }, permissions);
-  return '#!/bin/sh\nset +x +v\nset -eu\numask 077\nif [ -f "$0" ]; then chmod 700 "$0"; fi\n' + shellTokenCommand(login, options.installClient, token) + "\n";
 }

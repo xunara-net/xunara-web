@@ -103,8 +103,8 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
   Apple Silicon、Windows AMD64/ARM64 七种已预编译文件，无需自行编译，附校验和及构建
   元数据。[真实预览发布](https://github.com/xunara-net/xunara-relay/releases/tag/v0.1.0-preview.2)
   不含凭据，不承诺全 OS 现场验收、签名安装器或自动升级。
-- **添加设备**：Linux curl 安装/仅登录，勾选 MagicDNS、接收路由、子网/出口；手机提供 APP 自定义服务器地址，命令不含凭据。
-- **设备 Token 接入**：已有 Auth Key 或生成短期一次性密钥；复制命令隐藏输入、`file:` 临时文件，Linux 显式私有下载一键脚本。脚本含秘密，不能转发或提交 Git；手机仍走浏览器授权。
+- **添加设备**：选择平台后复制一个安装/接入命令，Linux 安装与加入合并为两行；MagicDNS、路由、子网/出口和名称收进「高级选项」。手机提供 APP 自定义服务器地址。
+- **设备 Token 接入**：显式勾选后粘贴设备 Auth Key 或生成默认 15 分钟一次性密钥，自动写入整条命令的 `--auth-key`，不再单独复制 Token 或下载设备脚本。含 Token 的命令可能进入终端历史、进程参数和剪贴板，勿分享/入 Git；关闭或切换浏览器/手机清除本页秘密，不做浏览器持久存储。手机仍走浏览器授权。
 - **立即过期**：设备列表/详情提供独立操作，读取身份/有效期版本并确认；失败或冲突不自动重试，不删除设备或释放额度，手机动作区换行。
 - **连接详情**：归属中继/地图来源/端口、UDP/IPv6/NAT、候选端点和客户端探测延迟，不冒充实时路径。
 - **私有安装与检测**：接入指南生成固定版已校验 Linux systemd 安装命令，隐藏读取令牌/保留身份升级；私有中继逐行健康检测，不替代心跳。
@@ -206,7 +206,7 @@ DNS 页面在网络未初始化时提供明确的「启用 MagicDNS」确认操�
 
 ## 仓库关系
 
-上述设备功能需要先升级[服务端事务接入版本](https://github.com/xunara-net/xunara-server/blob/main/docs/device-enrollment.md)。旧 Auth Key Cookie 写入新增 CSRF，Web 从服务端读取当前权限/额度；不把未知权限当作可以签发。Linux 命令执行使用隔离 mock 安装/CLI，Windows/macOS 未做现场执行证明。验证入口为 `npm ci && npm run typecheck && npm test && npm run build`（仓库根目录，Node 22），共享真实 API/下载/手机回归见 `scripts/device-enrollment-browser-smoke.cjs`，由兄弟 Admin 仓库浏览器验收启动；不在正式站试写设备。
+上述设备功能需要先升级[服务端事务接入版本](https://github.com/xunara-net/xunara-server/blob/main/docs/device-enrollment.md)。旧 Auth Key Cookie 写入新增 CSRF，Web 从服务端读取当前权限/额度；不把未知权限当作可以签发。Linux 命令保留 Bash pipefail，下载/安装失败不继续接入，执行使用隔离 mock 安装/CLI，Windows/macOS 未做现场执行证明。验证入口为 `npm ci && npm run typecheck && npm test && npm run build`（仓库根目录，Node 22），共享真实 API/剪贴板/手机回归见 `scripts/device-enrollment-browser-smoke.cjs`，由兄弟 Admin 仓库浏览器验收启动；不在正式站试写设备。交互与安全取舍见[简化接入提案](https://github.com/xunara-net/xunara-server/blob/main/docs/proposals/2026-10-12-simplified-device-enrollment.md)。
 
 | 仓库 | 职责 |
 | --- | --- |

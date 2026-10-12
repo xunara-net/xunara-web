@@ -7,13 +7,25 @@ const options: DeviceInstallOptions = { platform: "linux", installClient: true, 
 const permissions = { allowSubnetRouter: true, allowExitNode: true, maxRoutes: 10 };
 
 describe("device installation and core-first navigation", () => {
-  it("downloads the official installer before running it and emits no enrollment secret", () => {
+  it("combines the official installer and browser enrollment in two short lines", () => {
     const command = deviceInstallCommand("https://tenant.example.test:9090", options, permissions);
-    expect(command).toContain("https://tailscale.com/install.sh -o");
+    expect(command).toContain("curl -fsSL https://tailscale.com/install.sh | sh");
     expect(command).toContain("--login-server=\"https://tenant.example.test:9090\"");
-    expect(command).toContain("--accept-dns=true --accept-routes=false");
-    expect(command).not.toContain("| sh");
+    expect(command).toContain("bash -o pipefail");
+    expect(command.split("\n")).toHaveLength(2);
+    expect(command).not.toMatch(/--accept-dns|--accept-routes|mktemp|trap/);
     expect(command).not.toMatch(/--auth-key|--reset|--force-reauth|curl -k|insecure/);
+  });
+  it("keeps only preferences different from each platform's upstream defaults", () => {
+    for (const platform of ["linux", "windows", "macos"] as const) {
+      const command = deviceInstallCommand("https://tenant.example.test", { ...options, platform,
+        installClient: false, acceptRoutes: platform !== "linux" }, permissions);
+      expect(command).not.toMatch(/--accept-dns|--accept-routes/);
+      const changed = deviceInstallCommand("https://tenant.example.test", { ...options, platform,
+        installClient: false, acceptDNS: false, acceptRoutes: platform === "linux" }, permissions);
+      expect(changed).toContain("--accept-dns=false");
+      expect(changed).toContain(`--accept-routes=${platform === "linux"}`);
+    }
   });
   it("changes selected arguments and masks subnet host bits without shell interpolation", () => {
     const command = deviceInstallCommand("https://tenant.example.test", { ...options, installClient: false,

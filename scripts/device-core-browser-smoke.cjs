@@ -37,10 +37,12 @@ async function runDeviceCoreSmoke({ page, memberPage, origin, state, mark }) {
   await command.waitFor();
   assert.ok((await command.textContent()).includes('--login-server=' + JSON.stringify(origin)));
   assert.ok((await command.textContent()).includes('https://tailscale.com/install.sh'));
+  assert.equal((await command.textContent()).split('\n').length, 2);
+  assert.equal(await dialog.locator('details').getAttribute('open'), null);
+  await dialog.getByText('高级选项', { exact: true }).click();
   await dialog.getByRole('checkbox', { name: '接收其他设备发布的子网路由', exact: true }).check();
   await dialog.getByRole('checkbox', { name: '接收网络 DNS 配置（MagicDNS）', exact: true }).uncheck();
   await dialog.getByLabel('安装设备名称', { exact: true }).fill('home-server');
-  await dialog.getByText('子网路由与出口节点', { exact: true }).click();
   await dialog.getByRole('checkbox', { name: '将此设备设为子网路由器', exact: true }).check();
   await dialog.getByLabel('安装宣告子网', { exact: true }).fill('192.168.9.7/24');
   await dialog.getByRole('checkbox', { name: '将此设备设为出口节点', exact: true }).check();
