@@ -46,6 +46,8 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
     await copy.click();
     assert.ok(await page.evaluate(() => navigator.clipboard.readText()) === text);
+    assert.equal(await copy.textContent(), '已复制');
+    assert.equal(await dialog.getByRole('button', { name: '生成一次性 Token', exact: true }).count(), 0);
     await page.evaluate(() => navigator.clipboard.writeText(''));
     assert.equal(page.url().includes(issued.key), false);
     assert.equal(await page.evaluate((secret) => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }).includes(secret), issued.key), false);
