@@ -7,6 +7,16 @@ const options: DeviceInstallOptions = { platform: "linux", installClient: true, 
 const permissions = { allowSubnetRouter: true, allowExitNode: true, maxRoutes: 10 };
 
 describe("device installation and core-first navigation", () => {
+  it("stops before installation when a read-only network check fails", () => {
+    const command = deviceInstallCommand("https://tenant.example.test", { ...options, protectNetwork: true }, {
+      ...permissions, networkRanges: ["100.101.50.0/24", "192.168.60.0/24"], checkScriptURL: "https://app.example.test/network-check.py",
+    });
+    expect(command).toContain('xunara_check=$(curl -fsSL --max-time 30 "https://app.example.test/network-check.py") &&');
+    expect(command).toContain('python3 - "100.101.50.0/24" "192.168.60.0/24" &&');
+    expect(command.indexOf("python3 -")).toBeLessThan(command.indexOf("https://tailscale.com/install.sh"));
+    expect(command).not.toContain("curl -k");
+    expect(() => deviceInstallCommand("https://tenant.example.test", { ...options, protectNetwork: true }, permissions)).toThrow();
+  });
   it("combines the official installer and browser enrollment in two short lines", () => {
     const command = deviceInstallCommand("https://tenant.example.test:9090", options, permissions);
     expect(command).toContain("curl -fsSL https://tailscale.com/install.sh | sh");

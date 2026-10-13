@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { getOverview } from "../api/endpoints";
+import { getAddressConfiguration } from "../api/addresses";
 import { createEnrollmentKey, getEnrollmentCapabilities, type EnrollmentCapabilities } from "../api/device-enrollment";
 import { errorMessage } from "../api/client";
 import { session } from "../store";
@@ -16,15 +17,17 @@ const serverURL = ref(""), error = ref(""), loading = ref(false);
 const enrollment = ref<EnrollmentCapabilities | null>(null), enrollmentError = ref(""), generating = ref(false);
 const token = ref(""), generatedExpiry = ref(""), ttlSeconds = ref(900);
 const copied = ref(false), copyError = ref("");
+const networkRanges = ref<string[]>([]), networkError = ref("");
 const options = reactive<DeviceInstallOptions>({ platform: "linux", installClient: true, acceptDNS: true,
-  acceptRoutes: false, hostname: "", advertiseSubnets: false, routes: "", advertiseExitNode: false, authMethod: "browser" });
+  acceptRoutes: false, hostname: "", advertiseSubnets: false, routes: "", advertiseExitNode: false, authMethod: "browser", protectNetwork: true });
 let sequence = 0, active = true;
 let copyTimer: ReturnType<typeof setTimeout> | undefined;
 function clearToken() { token.value = ""; generatedExpiry.value = ""; }
 function resetCopy() { copied.value = false; copyError.value = ""; clearTimeout(copyTimer); }
 onBeforeUnmount(() => { active = false; sequence++; clearToken(); resetCopy(); });
 const permissions = computed(() => ({ allowSubnetRouter: Boolean(session.state.plan?.allowSubnetRouter),
-  allowExitNode: Boolean(session.state.plan?.allowExitNode), maxRoutes: session.state.plan?.maxRoutes ?? 0 }));
+  allowExitNode: Boolean(session.state.plan?.allowExitNode), maxRoutes: session.state.plan?.maxRoutes ?? 0,
+  networkRanges: networkRanges.value, checkScriptURL: window.location.origin + "/network-check.py" }));
 const mobilePlatform = computed(() => options.platform === "android" || options.platform === "ios");
 const tokenMode = computed(() => options.authMethod === "token" && !mobilePlatform.value);
 const useToken = computed({ get: () => tokenMode.value,
@@ -49,9 +52,10 @@ const downloads: Record<string, string> = {
 watch(() => props.open, (open) => {
   sequence++;
   clearToken(); resetCopy(); enrollment.value = null; enrollmentError.value = ""; generating.value = false; loading.value = false;
+  networkRanges.value = []; networkError.value = "";
   if (open) {
     Object.assign(options, { platform: "linux", installClient: true, acceptDNS: true, acceptRoutes: false,
-      hostname: "", advertiseSubnets: false, routes: "", advertiseExitNode: false, authMethod: "browser" });
+      hostname: "", advertiseSubnets: false, routes: "", advertiseExitNode: false, authMethod: "browser", protectNetwork: true });
     ttlSeconds.value = 900;
     load();
   } else { serverURL.value = ""; error.value = ""; }
@@ -61,7 +65,15 @@ async function load() {
   const request = ++sequence;
   serverURL.value = ""; error.value = ""; loading.value = true;
   enrollment.value = null; enrollmentError.value = "";
+  networkRanges.value = []; networkError.value = "";
   await Promise.all([
+    (async () => {
+      try {
+        const allocation = await getAddressConfiguration();
+        if (allocation.pending) throw new Error("网段变更尚未生效，请先刷新网络配置");
+        if (active && props.open && request === sequence) networkRanges.value = [allocation.ipv4_cidr, ...(allocation.extra_ipv4_cidrs ?? [])];
+      } catch (failure) { if (active && props.open && request === sequence) networkError.value = errorMessage(failure); }
+    })(),
     (async () => {
       try {
         const overview = await getOverview();
@@ -138,6 +150,10 @@ async function copy(value: string) {
             <div class="stack">
               <label class="field"><span class="label">设备名称（可选）</span><input v-model="options.hostname" class="input" aria-label="安装设备名称" maxlength="63" placeholder="例如 home-server" /></label>
               <label class="checkbox"><input v-model="options.acceptDNS" type="checkbox" />接收网络 DNS 配置（MagicDNS）</label>
+              <label v-if="options.platform === 'linux'" class="checkbox"><input v-model="options.protectNetwork" type="checkbox" />接入前检查本地网段冲突（推荐）</label>
+              <p v-if="options.platform === 'linux' && options.protectNetwork" class="help">需要 Python 3 与支持 JSON 的 iproute2。发现本地网段 / 路由与地址池或 Quad100 冲突时会停止，不接管网络；不改 DNS IP。无法检查也会停止。</p>
+              <p v-if="options.platform === 'linux' && options.protectNetwork && networkError" class="alert warning">{{ networkError }}；请重试读取地址池，保护命令不会在未知范围下继续接入。</p>
+              <p v-if="!options.acceptDNS" class="help">关闭 DNS 接收不保证取消客户端内置 Quad100 路由，不能据此判断网段冲突已经解除。</p>
               <label class="checkbox"><input v-model="options.acceptRoutes" type="checkbox" />接收其他设备发布的子网路由</label>
               <label class="checkbox"><input v-model="options.advertiseSubnets" type="checkbox" :disabled="!permissions.allowSubnetRouter" />将此设备设为子网路由器</label>
               <label v-if="options.advertiseSubnets" class="field"><span class="label">宣告 IPv4 子网</span><input v-model="options.routes" class="input mono" aria-label="安装宣告子网" placeholder="192.168.1.0/24,10.10.0.0/24" maxlength="4096" /></label>

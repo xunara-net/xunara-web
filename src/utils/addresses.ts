@@ -42,10 +42,24 @@ export function allocationCompatibilityWarning(value: string): string {
   } catch { return ""; }
   return "";
 }
-export function validateDeviceIPv4(value: string, prefix: string, reserved: string[]): string {
-  const address = ipv4Number(value.trim()), range = prefixRange(prefix);
+export function validateDeviceIPv4(value: string, prefix: string | string[], reserved: string[]): string {
+  const address = ipv4Number(value.trim());
   // /31 与 /32 按主机池使用全部地址；其余范围与服务端共用网络/广播边界。
-  const boundary = range.bits < 31 && (address === range.base || address === range.base + range.size - 1);
-  if (address < range.base || address >= range.base + range.size || boundary || overlap(address, 1, reserved)) throw new Error("IP 必须在当前网段内，不能使用网络地址、广播地址或保留地址（/31、/32 主机池除外）");
+  const available = (Array.isArray(prefix) ? prefix : [prefix]).some((entry) => {
+    const range = prefixRange(entry);
+    const boundary = range.bits < 31 && (address === range.base || address === range.base + range.size - 1);
+    return address >= range.base && address < range.base + range.size && !boundary;
+  });
+  if (!available || overlap(address, 1, reserved)) throw new Error("IP 必须在当前网段内，不能使用网络地址、广播地址或保留地址（/31、/32 主机池除外）");
   return asIPv4(address);
+}
+
+export function normalizeAdditionalRanges(value: string, primary: string, reserved: string[]): string[] {
+  const ranges = value.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean);
+  if (ranges.length > 32) throw new Error("最多添加 32 个附加网段");
+  const result: string[] = [];
+  for (const entry of ranges) {
+    result.push(normalizeAllocationRange(entry, [...reserved, primary, ...result]));
+  }
+  return result;
 }

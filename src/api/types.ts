@@ -422,6 +422,7 @@ export interface SelfServiceInfo {
   endpoint: string;
   domain_suffix?: string;
   plan?: string;
+  console_url?: string;
 }
 
 /** What this deployment offers before anybody has signed in. */
@@ -442,7 +443,7 @@ export interface ProvidersPayload {
 /** The tenant a self-service sign-up just created. */
 export interface TenantSignupResult {
   authenticated: boolean;
-  organization: { id: string; name: string; domain: string; url: string };
+  organization: { id: string; name: string; domain: string; url: string; console_url?: string };
   handoff: boolean;
   user: { login_name: string; display_name: string; role: string };
 }

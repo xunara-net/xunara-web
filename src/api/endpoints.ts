@@ -1,10 +1,11 @@
 // Typed wrappers over the endpoints the console uses. Views call these and
 // stay free of URL strings, which keeps the API version in one place.
 
-import { api } from "./client";
+import { ApiError, api } from "./client";
 import { toAccount, toAccountSessions, toAuditEvent, toPlan, toSnapshot } from "./adapters";
 import { providerLoginURL } from "../utils/auth";
 import { getEnrollmentCapabilities } from "./device-enrollment";
+import { organizationPattern, workspaceURL } from "../utils/console";
 import type {
   AccountPayload,
   AccountPasskey,
@@ -73,7 +74,37 @@ export const signupTenant = (
     email: string;
     password: string;
   },
-) => api<TenantSignupResult>(endpoint, { method: "POST", body });
+) => provisionTenant(endpoint, body);
+
+async function provisionTenant(endpoint: string, body: { login: string; display_name: string; email: string; password: string }): Promise<TenantSignupResult> {
+  if (endpoint !== "/api/self-service/v1/signup") throw new ApiError(502, "API_RESPONSE_INVALID: invalid signup endpoint");
+  const result = await api<TenantSignupResult>(endpoint, { method: "POST", body, redirect: "error" });
+  const org = result?.organization;
+  if (!org || !organizationPattern.test(org.id) || result.authenticated !== true || typeof result.handoff !== "boolean" ||
+      typeof org.domain !== "string" || typeof org.url !== "string" || typeof result.user?.login_name !== "string") {
+    throw new ApiError(502, "REGISTRATION_OUTCOME_UNKNOWN: refresh the login page to check the account before retrying");
+  }
+  let control: URL;
+  try { control = new URL(org.url); } catch { throw new ApiError(502, "REGISTRATION_OUTCOME_UNKNOWN: invalid control URL"); }
+  if (!["http:", "https:"].includes(control.protocol) || control.hostname !== org.domain || control.username || control.password ||
+      control.search || control.hash || !["", "/"].includes(control.pathname)) {
+    throw new ApiError(502, "REGISTRATION_OUTCOME_UNKNOWN: invalid control URL");
+  }
+  if (org.console_url !== undefined && org.console_url !== org.url) {
+    const expected = window.location.origin + workspaceURL(window.location.origin, org.id);
+    if (org.console_url !== expected) throw new ApiError(502, "REGISTRATION_OUTCOME_UNKNOWN: invalid console URL");
+  }
+  return result;
+}
+
+export async function loginWorkspace(origin: string, organization: string, login: string, password: string): Promise<string> {
+  const target = workspaceURL(origin, organization);
+  const payload = await api<SnapshotPayload>(`${target}/api/v1/auth/login`, { method: "POST", body: { login, password }, redirect: "error" });
+  if (payload.authenticated !== true || payload.tenant?.organization_id !== organization) {
+    throw new ApiError(502, "API_RESPONSE_INVALID: tenant login was not confirmed");
+  }
+  return target;
+}
 
 export const login = async (login: string, password: string) =>
   toSnapshot(await api<SnapshotPayload>("/api/v1/auth/login", { method: "POST", body: { login, password } }));

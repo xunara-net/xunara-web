@@ -1,5 +1,11 @@
 # Xunara Web（玄序 · 用户控制台）
 
+公开开户可使用主域名下的独立网络网页入口：注册后直接进入，入口登录显式选择
+网络标识，已有账号不用重新注册。新增默认/附加 IPv4 池管理与 Linux 接入前的
+只读冲突停止机制；共享页面不是客户端 login-server，也不把地址池冒充 VLAN。
+配置、迁移和 Quad100 边界见
+[服务端网络安全手册](https://github.com/xunara-net/xunara-server/blob/main/docs/shared-console-and-address-pools.md)。
+
 登录页新增「忘记密码」及 `/reset-password`：输入平台管理员核实身份后交付的
 一次性重置码，两次确认新密码；码不进入 URL 或持久存储，结果未知不自动重试。
 生成不改密码，兑换才撤销本账户浏览器登录；设备 / 中继 / API Key / 绑定不变。

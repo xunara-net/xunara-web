@@ -2,10 +2,12 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import * as ep from "../api/endpoints";
-import { errorMessage } from "../api/client";
+import { ApiError, errorMessage } from "../api/client";
 import { session } from "../store";
 import type { ProvidersPayload, TenantSignupResult } from "../api/types";
 import { beginInvitedIdentity } from "../api/account-identities";
+import { consolePath, rememberWorkspace } from "../utils/console";
+import { providerLoginURL } from "../utils/auth";
 
 // One registration page, three deployment shapes:
 //
@@ -31,6 +33,7 @@ const password = ref("");
 const busy = ref(false);
 const error = ref("");
 const created = ref<TenantSignupResult | null>(null);
+const outcomeUnknown = ref(false);
 
 // mode 只选择非敏感的成员邀请入口，不携带邀请码，也不能替代服务器声明的准入策略。
 const invitationEntry = computed(() => route.query.mode === "invite");
@@ -56,7 +59,8 @@ async function registerExternal(providerID: string) {
   if (busy.value || !info.value) return;
   if (registration.value === "open") {
     const provider = info.value.providers.find((entry) => entry.id === providerID);
-    if (provider) window.location.assign(provider.start_url);
+    const target = provider && providerLoginURL(provider.start_url, undefined, provider.id);
+    if (target) window.location.assign(target);
     return;
   }
   if (!info.value.registration_token || !invite.value.trim()) return;
@@ -82,7 +86,7 @@ async function load() {
 }
 
 function valid(): boolean {
-  if (loading.value || loadError.value || !canRegister.value || !info.value?.local_login || info.value.setup_required || created.value) return false;
+  if (loading.value || loadError.value || !canRegister.value || !info.value?.local_login || info.value.setup_required || created.value || outcomeUnknown.value) return false;
   if (!login.value.trim() || !password.value) return false;
   if (registration.value === "invite" && !invite.value.trim()) return false;
   return true;
@@ -102,11 +106,12 @@ async function submit() {
         password: password.value,
       });
       password.value = "";
+      rememberWorkspace(created.value.organization.id);
       // A shared parent-domain cookie means the browser is already signed in
       // on the tenant host; otherwise the tenant host asks once for the
       // password that was just set.
       if (created.value.handoff) {
-        window.location.assign(`${created.value.organization.url}/dashboard`);
+        window.location.assign(`${created.value.organization.console_url ?? created.value.organization.url}/dashboard`);
       }
       return;
     }
@@ -117,9 +122,14 @@ async function submit() {
       email: email.value.trim(),
       password: password.value,
     });
-    window.location.assign("/dashboard");
+    window.location.assign(consolePath("/dashboard"));
   } catch (err) {
-    error.value = errorMessage(err);
+    const uncertain = createsTenant.value && (!(err instanceof ApiError) || err.status >= 500 || err.status === 408);
+    if (uncertain || err instanceof ApiError && err.errorCode === "REGISTRATION_OUTCOME_UNKNOWN") {
+      outcomeUnknown.value = true;
+      password.value = "";
+      error.value = "尚未确认注册结果，请先在登录页面核对，不要重复创建网络。";
+    } else error.value = errorMessage(err);
   } finally {
     busy.value = false;
   }
@@ -154,7 +164,7 @@ async function submit() {
            a second submit cannot create a duplicate tenant. -->
       <template v-if="created">
         <div class="alert success" style="margin-top: 18px">
-          你的网络空间已创建：<span class="mono">{{ created.organization.domain }}</span>
+          你的网络空间已创建：<span class="mono">{{ created.organization.id }}</span>
         </div>
         <p class="help" style="margin-top: 12px">
           {{
@@ -163,7 +173,7 @@ async function submit() {
               : "浏览器将前往你的专属域名，请使用刚设置的账号登录。"
           }}
         </p>
-        <a class="btn primary" style="width: 100%; height: 36px; margin-top: 8px" :href="created.organization.url">
+        <a class="btn primary" style="width: 100%; height: 36px; margin-top: 8px" :href="created.organization.console_url ?? created.organization.url">
           进入我的控制台
         </a>
       </template>
@@ -173,11 +183,12 @@ async function submit() {
         <div class="alert info" style="margin-top: 18px">
           {{ info?.setup_required ? "服务尚未初始化，请等待管理员完成配置。" : "本部署未开放自助注册，请联系管理员获取账号。" }}
         </div>
-        <a class="btn" style="width: 100%; height: 36px; margin-top: 12px" href="/login">返回登录</a>
+        <router-link class="btn" style="width: 100%; height: 36px; margin-top: 12px" to="/login">返回登录</router-link>
       </template>
 
       <template v-else-if="!loading && !loadError">
         <div v-if="error" class="alert error" style="margin-top: 18px">{{ error }}</div>
+        <div v-if="outcomeUnknown" class="alert info" style="margin-top: 12px">尚未确认注册结果，请先返回登录核对，避免重复创建网络。<router-link to="/login">前往登录</router-link></div>
 
           <div v-if="registration === 'invite'" class="field" style="margin-top: 20px">
             <label for="invite">邀请码</label>

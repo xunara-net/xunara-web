@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { session } from "./store";
+import { consoleBase } from "./utils/console";
 
 // Routes follow the specification's console map (spec section 93): account,
 // tailnet, billing and settings each own a top-level group.
@@ -47,7 +48,7 @@ const routes = [
 ];
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(consoleBase() || "/"),
   routes,
   scrollBehavior: () => ({ top: 0 }),
 });

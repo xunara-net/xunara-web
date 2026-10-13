@@ -1,3 +1,5 @@
+import { consolePath } from "./console";
+
 export function loginDestination(candidate: unknown): { path: string; backend: boolean } {
   if (typeof candidate !== "string" || !candidate.startsWith("/") || candidate.startsWith("//") || /[\\\u0000-\u001f]/.test(candidate)) {
     return { path: "/dashboard", backend: false };
@@ -16,7 +18,7 @@ export function providerLoginURL(startURL: unknown, candidate: unknown, expected
   if (endpoint.pathname !== "/api/v1/auth/start" || endpoint.hash || !endpoint.searchParams.get("provider") || endpoint.searchParams.get("provider") === "local") return null;
   if (expectedProvider && endpoint.searchParams.get("provider") !== expectedProvider) return null;
   endpoint.searchParams.set("return_to", loginDestination(candidate).path);
-  return endpoint.pathname + endpoint.search;
+  return consolePath(endpoint.pathname + endpoint.search);
 }
 
 export function legacyProviderLoginURL(providers: { id: string; start_url: string }[], providerID: unknown, candidate: unknown): string | null {

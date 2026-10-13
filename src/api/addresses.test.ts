@@ -9,6 +9,14 @@ beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("window", { location: { 
 afterEach(() => vi.unstubAllGlobals());
 function respond(body: unknown) { fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })); }
 describe("address and external relay response contracts", () => {
+  it("sends the complete additional-pool set with the same revision and CSRF", async () => {
+    const extra = ["192.168.60.0/24"];
+    respond({ ...configuration, supports_multi_ipv4: true, extra_ipv4_cidrs: extra, desired_extra_ipv4_cidrs: extra });
+    await addresses.saveAddressRange(configuration.ipv4_cidr, 2, "csrf", extra);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ ipv4_cidr: configuration.ipv4_cidr, revision: 2, extra_ipv4_cidrs: extra });
+    respond({ ...configuration, supports_multi_ipv4: true, extra_ipv4_cidrs: undefined });
+    await expect(addresses.getAddressConfiguration()).rejects.toThrow("数据未确认");
+  });
   it("loads actual and desired separately and sends range version plus CSRF", async () => {
     respond({ ...configuration, pending: true, desired_revision: 3, desired_ipv4_cidr: "100.101.51.0/24" });
     expect((await addresses.getAddressConfiguration()).ipv4_cidr).toBe("100.101.50.0/24");

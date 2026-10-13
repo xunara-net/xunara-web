@@ -5,6 +5,8 @@
 // status and the server's message, so views can show something useful instead
 // of "HTTP 403".
 
+import { consolePath } from "../utils/console";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -33,7 +35,10 @@ type RequestOptions = {
 };
 
 async function requestAPI<T>(path: string, options: RequestOptions, read: (response: Response) => Promise<T>): Promise<T> {
-  const url = new URL(path, window.location.origin);
+  const url = new URL(consolePath(path), window.location.origin);
+  if (!path.startsWith("/") || path.startsWith("//") || /[\\\u0000-\u001f]/.test(path) || url.origin !== window.location.origin) {
+    throw new ApiError(400, "API_RESPONSE_INVALID: invalid same-origin API path");
+  }
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
   }
@@ -216,6 +221,8 @@ const codeMessages: Record<string, string> = {
   INVITATION_USED: "此邀请已使用，记录不能撤销",
   INVALID_INVITATION: "请选择成员或管理员角色，并填写有效期和不超过 200 字的备注",
   REGISTRATION_UNAVAILABLE: "注册服务暂时不可用，请稍后重试",
+  REGISTRATION_OUTCOME_UNKNOWN: "尚未确认注册结果，请先在登录页面检查账号，不要重复创建网络",
+  REGISTRATION_ORIGIN_REQUIRED: "请从部署管理员提供的正式主域名注册，不要使用旧 IP 或备用地址",
   ROUTE_LIMIT_REACHED: "路由数量已达上限，请撤销不用的路由或升级套餐",
   ROUTES_CHANGED: "路由宣告、批准或设备身份已改变，草稿保留；请读取最新状态后重新预览",
   ROUTE_NOT_ANNOUNCED: "新增批准的路由已停止宣告，未保存；请读取最新状态后核对草稿",

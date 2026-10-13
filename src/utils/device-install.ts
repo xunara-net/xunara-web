@@ -11,10 +11,12 @@ export interface DeviceInstallOptions {
   routes: string;
   advertiseExitNode: boolean;
   authMethod?: "browser" | "token";
+  protectNetwork?: boolean;
 }
-export interface DeviceInstallPermissions { allowSubnetRouter: boolean; allowExitNode: boolean; maxRoutes: number; }
+export interface DeviceInstallPermissions { allowSubnetRouter: boolean; allowExitNode: boolean; maxRoutes: number; networkRanges?: string[]; checkScriptURL?: string; }
 
 export function deviceInstallCommand(serverURL: string, options: DeviceInstallOptions, permissions: DeviceInstallPermissions, authKey = ""): string {
+  if (options.protectNetwork !== undefined && typeof options.protectNetwork !== "boolean") throw new Error("网络冲突保护选项未确认");
   if (options.authMethod !== undefined && !["browser", "token"].includes(options.authMethod)) throw new Error("请选择浏览器或 Token 接入方式");
   if (![options.installClient, options.acceptDNS, options.acceptRoutes, options.advertiseSubnets, options.advertiseExitNode,
     permissions.allowSubnetRouter, permissions.allowExitNode].every((value) => typeof value === "boolean") ||
@@ -46,9 +48,19 @@ export function deviceInstallCommand(serverURL: string, options: DeviceInstallOp
     flags.push(`--auth-key=${JSON.stringify(authKey)}`);
   }
   const login = [base, ...flags].join(" ");
-  if (options.platform !== "linux" || !options.installClient) return login;
+  let preflight = "";
+  if (options.platform === "linux" && options.protectNetwork) {
+    const source = new URL(permissions.checkScriptURL ?? "");
+    if (source.pathname !== "/network-check.py" || source.username || source.password || source.search || source.hash ||
+        source.protocol !== "https:" && !(source.protocol === "http:" && ["localhost", "127.0.0.1"].includes(source.hostname))) throw new Error("网络冲突检查需要正式 HTTPS 地址（本机验收除外）");
+    if (!Array.isArray(permissions.networkRanges) || !permissions.networkRanges.length) throw new Error("地址池尚未确认，不能生成受保护的接入命令，请重新打开添加设备");
+    const ranges = permissions.networkRanges.map((value) => JSON.stringify(normalizeAllocationRange(value, []))).join(" ");
+    // curl 失败不能变成空脚本成功；检查失败会阻止后续安装/接入，不静默改本机网络。
+    preflight = `xunara_check=$(curl -fsSL --max-time 30 ${JSON.stringify(source.href)}) &&\nprintf '%s\\n' "$xunara_check" | python3 - ${ranges} &&\n`;
+  }
+  if (options.platform !== "linux" || !options.installClient) return preflight + login;
   // 保留官方简洁安装管道，但必须传播 curl 失败，防止安装失败后继续带密钥接入。
-  return `bash -o pipefail -c 'curl -fsSL https://tailscale.com/install.sh | sh' &&\n${login}`;
+  return `${preflight}bash -o pipefail -c 'curl -fsSL https://tailscale.com/install.sh | sh' &&\n${login}`;
 }
 
 export function validDeviceAuthKey(value: unknown): value is string {

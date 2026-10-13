@@ -4,6 +4,7 @@ import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
 import type { MemberInvitations, MemberInvitation, MemberInvitationRequest } from "../api/types";
 import { session } from "../store";
+import { consolePath } from "../utils/console";
 import { formatTime, roleLabel } from "../utils/format";
 import DataTable from "./DataTable.vue";
 import ModalDialog from "./ModalDialog.vue";
@@ -19,7 +20,7 @@ const code = ref("");
 const role = ref<MemberInvitationRequest["role"]>("member");
 const note = ref("");
 const ttl = ref(168);
-const registrationURL = computed(() => `${window.location.origin}${data.value?.registration_url ?? '/register?mode=invite'}`);
+const registrationURL = computed(() => `${window.location.origin}${consolePath(data.value?.registration_url ?? '/register?mode=invite')}`);
 const statusLabels = { pending: "待使用", redeemed: "已使用", expired: "已过期" };
 
 onMounted(load);
