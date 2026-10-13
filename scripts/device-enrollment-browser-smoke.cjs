@@ -25,13 +25,29 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     const copy = dialog.getByRole('button', { name: '复制命令', exact: true });
     assert.equal(await copy.isDisabled(), true);
     assert.equal((await read('/api/v1/auth-keys')).authKeys.length, baselineKeys);
+    const ttl = dialog.getByLabel('接入密钥有效期', { exact: true });
+    await ttl.waitFor(); assert.equal(await ttl.inputValue(), '900');
+    assert.equal(await dialog.locator('details').getAttribute('open'), null);
+    assert.equal(await dialog.evaluate((element) => {
+      const selector = element.querySelector('[aria-label="接入密钥有效期"]');
+      const field = element.querySelector('[aria-label="设备预授权 Token"]');
+      return Boolean(selector && field && !selector.closest('details') && (selector.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING));
+    }), true);
+    await ttl.selectOption('3600');
+    if (process.env.SMOKE_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SMOKE_SCREENSHOT_DIR, { recursive: true, mode: 0o700 });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: path.join(process.env.SMOKE_SCREENSHOT_DIR, 'add-device-order-mobile.png') });
+    }
     await dialog.getByRole('button', { name: '生成一次性 Token', exact: true }).waitFor();
     const creation = page.waitForResponse((response) => response.url().endsWith('/api/v2/auth-keys/enrollment') && response.request().method() === 'POST');
     await dialog.getByRole('button', { name: '生成一次性 Token', exact: true }).click();
     const response = await creation; assert.equal(response.status(), 201); issued = await response.json();
+    assert.equal(response.request().postDataJSON().ttl_seconds, 3600);
     assert.equal(issued.reusable, false); assert.equal(issued.ephemeral, false);
     assert.ok(/^tskey-auth-[a-z2-7]{26}$/.test(issued.key));
-    assert.ok(Date.parse(issued.expiry) > Date.now() + 14 * 60000 && Date.parse(issued.expiry) <= Date.now() + 15 * 60000);
+    assert.ok(Date.parse(issued.expiry) > Date.now() + 59 * 60000 && Date.parse(issued.expiry) <= Date.now() + 60 * 60000);
+    assert.equal(await ttl.inputValue(), '3600'); assert.equal(await ttl.isDisabled(), true);
     const field = dialog.getByLabel('设备预授权 Token', { exact: true });
     await page.waitForFunction(() => document.querySelector('input[aria-label="设备预授权 Token"]')?.value.startsWith('tskey-auth-'));
     assert.ok(await field.inputValue() === issued.key); assert.equal(await field.getAttribute('type'), 'password');
@@ -54,6 +70,12 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     assert.equal((await read('/api/v1/auth-keys')).authKeys.some((key) => Object.values(key).includes(issued.key)), false);
 
     mark('device-token-mobile-primary-command-visible-and-advanced-collapsed');
+    assert.equal(await copy.count(), 1);
+    assert.equal(await copy.evaluate((element) => Boolean(element.closest('.modal-footer'))), true);
+    assert.equal(await dialog.evaluate((element) => {
+      const advanced = element.querySelector('details'), output = element.querySelector('.device-command-box');
+      return Boolean(advanced && output && (advanced.compareDocumentPosition(output) & Node.DOCUMENT_POSITION_FOLLOWING));
+    }), true);
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 844 }); await noOverflow();
       assert.equal(await dialog.locator('details').getAttribute('open'), null);
@@ -65,6 +87,23 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
       }
     }
 
+    mark('device-token-advanced-before-preview-and-fixed-copy-after-scrolling');
+    await page.setViewportSize({ width: 390, height: 540 });
+    await dialog.getByText('高级选项', { exact: true }).click();
+    const hostname = dialog.getByLabel('安装设备名称', { exact: true });
+    await hostname.fill('order-smoke');
+    assert.ok((await command.textContent()).includes('--hostname="order-smoke"'));
+    for (const bottom of [false, true]) {
+      await dialog.locator('.card-body').evaluate((element, bottom) => { element.scrollTop = bottom ? element.scrollHeight : 0; }, bottom);
+      await noOverflow(); const bounds = await copy.boundingBox();
+      assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 540);
+    }
+    await copy.click();
+    assert.ok(await page.evaluate(() => navigator.clipboard.readText()) === await command.textContent());
+    await page.evaluate(() => navigator.clipboard.writeText(''));
+    await hostname.fill(''); await dialog.getByText('高级选项', { exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 844 });
+
     mark('device-token-clear-on-browser-mobile-close-and-no-mint-replay');
     await dialog.getByLabel('设备平台', { exact: true }).selectOption('windows');
     text = await command.textContent();
@@ -74,10 +113,18 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     assert.equal((await command.textContent()).includes(issued.key), false);
     await dialog.getByRole('checkbox', { name: '使用 Token 免网页登录', exact: true }).check();
     assert.equal(await field.inputValue(), ''); assert.equal(await copy.isDisabled(), true);
+    assert.equal(await ttl.isDisabled(), false);
     await field.fill(issued.key);
+    assert.equal(await ttl.count(), 0);
+    await dialog.getByText('已有 Token 的有效期由签发时决定，不会在这里修改。', { exact: true }).waitFor();
     await dialog.getByLabel('设备平台', { exact: true }).selectOption('android');
     assert.equal(await field.count(), 0); assert.equal(await command.count(), 0);
     assert.equal((await dialog.innerText()).includes(issued.key), false);
+    const copyAddress = dialog.getByRole('button', { name: '复制控制面地址', exact: true });
+    assert.equal(await copyAddress.count(), 1);
+    assert.equal(await copyAddress.evaluate((element) => Boolean(element.closest('.modal-footer'))), true);
+    await copyAddress.click(); assert.equal(await page.evaluate(() => navigator.clipboard.readText()), origin);
+    await page.evaluate(() => navigator.clipboard.writeText(''));
     await dialog.getByLabel('设备平台', { exact: true }).selectOption('linux');
     await dialog.getByRole('checkbox', { name: '使用 Token 免网页登录', exact: true }).check();
     assert.equal(await field.inputValue(), ''); await field.fill(issued.key);

@@ -106,7 +106,7 @@ async function copy(value: string) {
 <template>
   <ModalDialog :open="open" title="添加设备" :busy="loading || generating" @close="emit('close')">
     <div class="stack">
-      <p class="muted">选择平台，在新设备上运行命令即可接入。</p>
+      <p class="muted">选择设备平台，按提示安装并加入网络。</p>
       <p v-if="loading" role="status">正在读取接入地址…</p>
       <div v-if="error" class="alert error" role="alert">{{ error }}<button class="btn small" @click="load">重新读取接入地址</button></div>
       <label class="field"><span class="label">设备平台</span><select v-model="options.platform" class="select" aria-label="设备平台" :disabled="generating"><option value="linux">Linux</option><option value="windows">Windows</option><option value="macos">macOS</option><option value="android">Android</option><option value="ios">iPhone / iPad</option></select></label>
@@ -115,32 +115,25 @@ async function copy(value: string) {
           <a class="btn" :href="downloads[options.platform]" target="_blank" rel="noopener noreferrer">下载官方客户端</a>
           <p class="muted">在 APP 中选择自定义登录服务器，填入以下地址，再完成浏览器授权。</p>
           <pre class="device-install-command mono">{{ serverURL }}</pre>
-          <button class="btn primary" aria-label="复制控制面地址" @click="copy(serverURL)">{{ copied ? '已复制' : '复制控制面地址' }}</button>
         </template>
         <template v-else>
           <a v-if="downloads[options.platform]" :href="downloads[options.platform]" target="_blank" rel="noopener noreferrer">先下载并安装官方客户端</a>
           <label v-if="options.platform === 'linux'" class="checkbox"><input v-model="options.installClient" type="checkbox" />同时安装 / 更新官方客户端</label>
           <label class="checkbox"><input v-model="useToken" type="checkbox" aria-label="使用 Token 免网页登录" :disabled="generating" />使用 Token 免网页登录</label>
           <div v-if="tokenMode" class="stack device-token-options">
+            <label v-if="canGenerate && (!token || generatedExpiry)" class="field"><span class="label">新 Token 有效期</span><select v-model="ttlSeconds" class="select" aria-label="接入密钥有效期" :disabled="generating || Boolean(token)"><option :value="900">15 分钟（默认）</option><option :value="3600">1 小时</option><option :value="86400">24 小时</option></select></label>
             <div class="device-token-row">
               <input v-model="token" class="input mono" type="password" aria-label="设备预授权 Token" autocomplete="off" spellcheck="false" maxlength="266" :disabled="generating" placeholder="粘贴设备 Token，或点击生成" @input="generatedExpiry = ''" />
               <button v-if="canGenerate && !token" class="btn" :disabled="generating || loading || keyLimitReached" @click="generate">{{ generating ? '正在生成…' : '生成一次性 Token' }}</button>
               <button v-if="token" class="btn small" :disabled="generating" @click="clearToken">清除</button>
             </div>
             <p v-if="generatedExpiry" class="muted small-text">一次性 Token 有效至 {{ formatTime(generatedExpiry) }}；已自动填入命令。</p>
+            <p v-else-if="token" class="muted small-text">已有 Token 的有效期由签发时决定，不会在这里修改。</p>
             <p v-if="keyLimitReached" class="muted small-text">可用密钥已达额度，请在「API 与密钥」清理不用的记录。</p>
             <p v-if="enrollment && !enrollment.can_manage" class="muted small-text">生成密钥需要网络管理员权限；可以使用管理员提供的设备 Auth Key。</p>
             <div v-if="enrollmentError" class="alert error" role="alert">{{ enrollmentError }}<p>不自动重试生成；可重新打开弹窗读取权限，结果未知时在「API 与密钥」检查。</p></div>
             <p class="muted small-text">仅支持设备 Auth Key。命令含 Token，可能留在终端历史、进程参数和剪贴板，勿分享；建议短期一次性密钥。</p>
           </div>
-          <div v-if="command.error" class="alert error" role="alert">{{ command.error }}</div>
-          <div class="device-command-box">
-            <div class="device-command-toolbar"><strong>{{ options.platform === 'linux' && options.installClient ? '安装并加入' : '加入网络' }}</strong><button class="btn primary small" aria-label="复制命令" :disabled="!command.text || generating" @click="copy(command.text)">{{ copied ? '已复制' : '复制命令' }}</button></div>
-            <pre v-if="command.text" class="device-install-command mono" aria-label="设备安装命令">{{ command.text }}</pre>
-            <p v-else-if="tokenMode && !token" class="muted small-text">填入或生成 Token 后，复制一次即可安装并加入。</p>
-          </div>
-          <p v-if="copyError" class="alert error" role="alert">{{ copyError }}</p>
-          <p class="muted small-text">{{ tokenMode ? '无需网页登录，仍受设备额度和访问策略约束。' : '运行后打开终端给出的链接，登录并完成设备审批。' }}</p>
           <details class="device-install-options"><summary>高级选项</summary>
             <div class="stack">
               <label class="field"><span class="label">设备名称（可选）</span><input v-model="options.hostname" class="input" aria-label="安装设备名称" maxlength="63" placeholder="例如 home-server" /></label>
@@ -149,23 +142,33 @@ async function copy(value: string) {
               <label class="checkbox"><input v-model="options.advertiseSubnets" type="checkbox" :disabled="!permissions.allowSubnetRouter" />将此设备设为子网路由器</label>
               <label v-if="options.advertiseSubnets" class="field"><span class="label">宣告 IPv4 子网</span><input v-model="options.routes" class="input mono" aria-label="安装宣告子网" placeholder="192.168.1.0/24,10.10.0.0/24" maxlength="4096" /></label>
               <label class="checkbox"><input v-model="options.advertiseExitNode" type="checkbox" :disabled="!permissions.allowExitNode" />将此设备设为出口节点</label>
-              <label v-if="tokenMode && canGenerate" class="field"><span class="label">新 Token 有效期</span><select v-model="ttlSeconds" class="select" aria-label="接入密钥有效期" :disabled="generating || Boolean(token)"><option :value="900">15 分钟（默认）</option><option :value="3600">1 小时</option><option :value="86400">24 小时</option></select></label>
               <p class="muted small-text">路由 / 出口按套餐开放，宣告不等于批准，设备还需启用 IP 转发。Linux 安装需要 Bash / curl；Windows 请用管理员终端。用于新设备，不重置已有配置，不跳过 TLS 校验。关闭弹窗会清除本页 Token，但未使用的密钥仍有效，可在密钥页撤销。</p>
             </div>
           </details>
+          <div v-if="command.error" class="alert error" role="alert">{{ command.error }}</div>
+          <div class="device-command-box">
+            <strong class="device-command-title">{{ options.platform === 'linux' && options.installClient ? '安装并加入' : '加入网络' }}</strong>
+            <pre v-if="command.text" class="device-install-command mono" aria-label="设备安装命令">{{ command.text }}</pre>
+            <p v-else-if="tokenMode && !token" class="muted small-text">填入或生成 Token 后，复制一次即可安装并加入。</p>
+          </div>
+          <p v-if="copyError" class="alert error" role="alert">{{ copyError }}</p>
+          <p class="muted small-text">{{ tokenMode ? '无需网页登录，仍受设备额度和访问策略约束。' : '运行后打开终端给出的链接，登录并完成设备审批。' }}</p>
         </template>
         <p v-if="mobilePlatform && copyError" class="alert error" role="alert">{{ copyError }}</p>
         <span v-if="copied" class="copy-status" role="status">已复制</span>
       </template>
     </div>
-    <template #footer><button class="btn" :disabled="loading || generating" @click="emit('close')">关闭</button></template>
+    <template #footer>
+      <button class="btn" :disabled="loading || generating" @click="emit('close')">关闭</button>
+      <button v-if="serverURL" class="btn primary" :aria-label="mobilePlatform ? '复制控制面地址' : '复制命令'" :disabled="loading || generating || (!mobilePlatform && !command.text)" @click="copy(mobilePlatform ? serverURL : command.text)">{{ copied ? '已复制' : mobilePlatform ? '复制控制面地址' : '复制命令' }}</button>
+    </template>
   </ModalDialog>
 </template>
 
 <style scoped>
 .device-install-command { margin: 0; padding: 12px; border-radius: 8px; background: var(--surface-2); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
-.device-command-box { min-width: 0; }
-.device-command-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.device-command-box { min-width: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+.device-command-title { display: block; margin-bottom: 8px; }
 .device-token-options { gap: 8px; }
 .device-token-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .device-token-row .input { flex: 1 1 180px; min-width: 0; }
@@ -173,5 +176,8 @@ async function copy(value: string) {
 .device-install-options { border-top: 1px solid var(--border); padding-top: 12px; }
 .device-install-options summary { cursor: pointer; }
 .device-install-options[open] summary { margin-bottom: 12px; }
+.field { display: grid; gap: 6px; min-width: 0; margin-bottom: 0; }
+.field .label { color: var(--text-muted); font-size: 13px; }
+@media (max-width: 560px) { .input, .select { font-size: 16px; min-height: 40px; } }
 .copy-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 </style>
