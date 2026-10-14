@@ -19,7 +19,7 @@ export interface DeviceInstallPermissions { allowSubnetRouter: boolean; allowExi
 export function networkCheckCommand(networkRanges: readonly string[] | undefined, rawSource: string | undefined): string {
   let source: URL;
   try { source = new URL(rawSource ?? ""); } catch { throw new Error("网络冲突检查需要正式 HTTPS 地址（本机验收除外）"); }
-  if (source.pathname !== "/network-check.py" || source.username || source.password || source.search || source.hash ||
+  if (source.pathname !== "/network-check.sh" || source.username || source.password || source.search || source.hash ||
       source.protocol !== "https:" && !(source.protocol === "http:" && ["localhost", "127.0.0.1"].includes(source.hostname))) {
     throw new Error("网络冲突检查需要正式 HTTPS 地址（本机验收除外）");
   }
@@ -30,8 +30,8 @@ export function networkCheckCommand(networkRanges: readonly string[] | undefined
     throw new Error("地址池尚未确认，不能生成网络检查命令，请刷新网络配置");
   }
   const ranges = [...new Set(networkRanges.map((value) => normalizeAllocationRange(value, [])))].map((value) => JSON.stringify(value)).join(" ");
-  // curl 失败不能变成空脚本成功；检查失败会阻止安装和接入，不静默改 DNS 或路由。
-  return `xunara_check=$(curl -fsSL --max-time 30 ${JSON.stringify(source.href)}) &&\nprintf '%s\\n' "$xunara_check" | python3 - ${ranges}`;
+  // 下载失败或空响应不能被当成检查通过；只用 Shell，检查失败阻止后续安装和接入。
+  return `xunara_check=$(curl -fsSL --max-time 30 ${JSON.stringify(source.href)}) && [ -n "$xunara_check" ] &&\nprintf '%s\\n' "$xunara_check" | sh -s -- ${ranges}`;
 }
 
 export function deviceInstallCommand(serverURL: string, options: DeviceInstallOptions, permissions: DeviceInstallPermissions, authKey = ""): string {

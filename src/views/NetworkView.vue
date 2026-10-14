@@ -28,7 +28,7 @@ const conflictCheck = computed(() => {
     return { text: "", error: "当前地址池尚未确认，请刷新并等待网段变更生效后再生成检查命令。" };
   }
   try {
-    return { text: networkCheckCommand([allocation.data.ipv4_cidr, ...(allocation.data.extra_ipv4_cidrs ?? [])], window.location.origin + "/network-check.py"), error: "" };
+    return { text: networkCheckCommand([allocation.data.ipv4_cidr, ...(allocation.data.extra_ipv4_cidrs ?? [])], window.location.origin + "/network-check.sh"), error: "" };
   } catch (err) { return { text: "", error: errorMessage(err) }; }
 });
 async function copyConflictCheck() {
@@ -109,7 +109,7 @@ async function load() {
   <details class="card network-conflict-help">
     <summary class="card-body"><strong>网段冲突检查与处理</strong><span class="muted small-text"> · 按需展开</span></summary>
     <div class="card-body stack">
-      <p class="muted">浏览器不能替远程设备检查局域网。请在需要接入的 Linux 设备上执行下面的只读检查；需要 Python 3、curl 和支持 JSON 的 iproute2。不安装、不登录，不修改 DNS、路由或设备 IP，也不上传检查结果。</p>
+      <p class="muted">浏览器不能替远程设备检查局域网。请在需要接入的 Linux 设备上执行下面的只读 Shell 检查；需要 curl、iproute2、awk、mktemp、timeout 等基础工具，无需 Python。不安装、不登录，不修改 DNS、路由或设备 IP，也不上传检查结果。</p>
       <pre v-if="conflictCheck.text" class="network-check-command mono" aria-label="只读网络冲突检查命令">{{ conflictCheck.text }}</pre>
       <p v-else class="alert warning" role="status">{{ conflictCheck.error }}</p>
       <div><button class="btn" :disabled="!conflictCheck.text || busy || loading" @click="copyConflictCheck">复制只读检查命令</button></div>

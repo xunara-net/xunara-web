@@ -47,10 +47,11 @@ function serve(request, response) {
     upstream.on('error', () => { if (!response.headersSent) response.writeHead(502); response.end(); });
     request.pipe(upstream); return;
   }
-  const asset = pathname.startsWith('/assets/') || pathname === '/network-check.py' ? path.resolve(dist, '.' + pathname) : path.join(dist, 'index.html');
+  if (pathname === '/network-check.py') { response.writeHead(410); response.end(); return; }
+  const asset = pathname.startsWith('/assets/') || pathname === '/network-check.sh' ? path.resolve(dist, '.' + pathname) : path.join(dist, 'index.html');
   if (!asset.startsWith(dist + path.sep) || !fs.existsSync(asset)) { response.writeHead(404); response.end(); return; }
   const extension = path.extname(asset);
-  response.writeHead(200, { 'Content-Type': extension === '.js' ? 'application/javascript' : extension === '.css' ? 'text/css' : extension === '.py' ? 'text/plain' : 'text/html; charset=utf-8' });
+  response.writeHead(200, { 'Content-Type': extension === '.js' ? 'application/javascript' : extension === '.css' ? 'text/css' : extension === '.sh' ? 'text/plain' : 'text/html; charset=utf-8' });
   fs.createReadStream(asset).pipe(response);
 }
 async function snapshot(page, prefix = '') {
@@ -327,8 +328,9 @@ async function main() {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + '/t/shared-owner/network');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
-  const script = await page.evaluate(async () => { const response = await fetch('/network-check.py'); return { status: response.status, text: await response.text() }; });
-  assert.equal(script.status, 200); assert.ok(script.text.includes('100.100.100.100/32'));
+  const script = await page.evaluate(async () => { const response = await fetch('/network-check.sh'); return { status: response.status, text: await response.text() }; });
+  assert.equal(script.status, 200); assert.ok(script.text.startsWith('#!/bin/sh\n')); assert.ok(script.text.includes('100.100.100.100/32'));
+  assert.equal(await page.evaluate(async () => (await fetch('/network-check.py')).status), 410);
   await page.screenshot({ path: path.join(state, 'shared-console-mobile.png') });
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ passed: completed.length, javascriptErrors: 0, artifacts: state }));

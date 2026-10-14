@@ -55,7 +55,8 @@ async function runDeviceEnrollmentSmoke({ page, memberPage, origin, state, mark 
     let text = await command.textContent();
     assert.ok(text.includes('--auth-key=' + JSON.stringify(issued.key)));
     assert.ok(text.includes(origin)); assert.equal(text.split('\n').length, 4);
-    assert.ok(text.includes('/network-check.py')); assert.ok(text.includes('python3 -'));
+    assert.ok(text.includes('/network-check.sh')); assert.ok(text.includes('sh -s --'));
+    assert.equal(text.includes('python'), false);
     assert.equal(/file:|stty|Read-Host|mktemp/.test(text), false);
     assert.equal(spawnSync('bash', ['-n'], { input: text }).status, 0);
     assert.equal(await dialog.getByRole('button', { name: '复制设备 Token（敏感）', exact: true }).count(), 0);

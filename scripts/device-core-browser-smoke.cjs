@@ -49,7 +49,9 @@ async function runDeviceCoreSmoke({ page, memberPage, origin, state, mark }) {
   assert.ok((await command.textContent()).includes('--login-server=' + JSON.stringify(origin)));
   assert.ok((await command.textContent()).includes('https://tailscale.com/install.sh'));
   assert.equal((await command.textContent()).split('\n').length, 4);
-  assert.ok((await command.textContent()).includes('/network-check.py'));
+  assert.ok((await command.textContent()).includes('/network-check.sh'));
+  assert.ok((await command.textContent()).includes('sh -s --'));
+  assert.equal((await command.textContent()).includes('python'), false);
   assert.equal(await dialog.locator('details').getAttribute('open'), null);
   await dialog.getByText('高级选项', { exact: true }).click();
   await dialog.getByRole('checkbox', { name: '接收其他设备发布的子网路由', exact: true }).check();

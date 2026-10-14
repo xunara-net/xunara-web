@@ -9,7 +9,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:network": "node --test scripts/network-check-test.cjs"
   },
   "dependencies": {
     "vue": "^3.5.13",

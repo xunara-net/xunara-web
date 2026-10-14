@@ -29,7 +29,7 @@ function resetCopy() { copied.value = false; copyError.value = ""; clearTimeout(
 onBeforeUnmount(() => { active = false; sequence++; clearToken(); resetCopy(); });
 const permissions = computed(() => ({ allowSubnetRouter: Boolean(session.state.plan?.allowSubnetRouter),
   allowExitNode: Boolean(session.state.plan?.allowExitNode), maxRoutes: session.state.plan?.maxRoutes ?? 0,
-  networkRanges: networkRanges.value, checkScriptURL: window.location.origin + "/network-check.py" }));
+  networkRanges: networkRanges.value, checkScriptURL: window.location.origin + "/network-check.sh" }));
 const mobilePlatform = computed(() => options.platform === "android" || options.platform === "ios");
 const sharedConsole = Boolean(consoleBase());
 const tokenMode = computed(() => options.authMethod === "token" && !mobilePlatform.value);
@@ -171,7 +171,7 @@ async function copy(value: string) {
               <label class="field"><span class="label">设备名称（可选）</span><input v-model="options.hostname" class="input" aria-label="安装设备名称" maxlength="63" placeholder="例如 home-server" /></label>
               <label class="checkbox"><input v-model="options.acceptDNS" type="checkbox" />接收网络 DNS 配置（MagicDNS）</label>
               <label v-if="options.platform === 'linux'" class="checkbox"><input v-model="options.protectNetwork" type="checkbox" />接入前检查本地网段冲突（推荐）</label>
-              <p v-if="options.platform === 'linux' && options.protectNetwork" class="help">需要 Python 3 与支持 JSON 的 iproute2。发现本地网段 / 路由与地址池或 Quad100 冲突时会停止，不接管网络；不改 DNS IP。无法检查也会停止。</p>
+              <p v-if="options.platform === 'linux' && options.protectNetwork" class="help">使用通用 Shell 与 iproute2、awk、timeout 等基础工具，无需 Python。发现本地网段 / 路由与地址池或 Quad100 冲突时会停止，不接管网络；不改 DNS IP。无法检查也会停止。</p>
               <p v-if="options.platform === 'linux' && options.protectNetwork && networkError" class="alert warning">{{ networkError }}；请重试读取地址池，保护命令不会在未知范围下继续接入。</p>
               <p v-if="!options.acceptDNS" class="help">关闭 DNS 接收不保证取消客户端内置 Quad100 路由，不能据此判断网段冲突已经解除。</p>
               <label class="checkbox"><input v-model="options.acceptRoutes" type="checkbox" />接收其他设备发布的子网路由</label>

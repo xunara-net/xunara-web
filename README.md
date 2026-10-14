@@ -47,9 +47,17 @@ XUNARA_CONTROL_URL=http://10.0.0.5:8080 npm run dev
 ```bash
 npm run typecheck  # vue-tsc
 npm run test       # vitest
-python3 scripts/network-check-test.py # 只读网络冲突检查器与失败停止回归
+npm run test:network # Shell 只读网络冲突检查器与失败停止回归
 npm run build      # 产物在 dist/，由 xunara-deploy 的 nginx 或控制面静态托管
 ```
+
+Linux 接入保护与「我的网络」只读诊断共用 `/network-check.sh`，通过
+`sh -s -- <CIDR...>` 执行，不需要 Python 或 iproute2 JSON 支持。
+设备需有 `sh`、`awk`、`ip`（iproute2）、`mktemp`、`timeout` 及常见文件工具；
+只读取接口和 IPv4 / IPv6 全部路由表。下载为空、工具缺失、快照异常或超时
+都停止后续接入，不修改 DNS / 路由、不自动运行 `tailscale down`。
+旧 Python 检查器已删除；部署时清除旧静态文件，并让旧地址返回 410，不能重定向
+至 Shell 文件或回落到 SPA，以免缓存命令错误执行。
 
 API 的线格式按端点分别定义：认证、账户会话与套餐返回蛇形字段，审计返回
 Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显式转换为页面模型；

@@ -21,6 +21,6 @@ jobs:
       - name: Test
         run: npm run test
       - name: Network conflict guard
-        run: python3 scripts/network-check-test.py
+        run: npm run test:network
       - name: Build
         run: npm run build
