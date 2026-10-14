@@ -55,6 +55,7 @@ function routeName(name: string): string {
   const names: Record<string, string> = {
     dashboard: "控制台首页",
     devices: "设备",
+    shares: "设备分享",
     device: "设备详情",
     network: "网络",
     topology: "拓扑与连接",

@@ -1,7 +1,7 @@
 # Xunara Web（玄序 · 用户控制台）
 
-公开开户可使用主域名下的独立网络网页入口：注册后直接进入，入口登录显式选择
-网络标识，已有账号不用重新注册。新增默认/附加 IPv4 池管理与 Linux 接入前的
+公开开户可使用主域名下的独立网络网页入口：注册后直接进入自己的网络。
+已有账号在主页用用户名直接登录，无需重新注册或填写网络标识。新增默认/附加 IPv4 池管理与 Linux 接入前的
 只读冲突停止机制；共享页面不是客户端 login-server，也不把地址池冒充 VLAN。
 配置、迁移和 Quad100 边界见
 [服务端网络安全手册](https://github.com/xunara-net/xunara-server/blob/main/docs/shared-console-and-address-pools.md)。
@@ -63,6 +63,7 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 | `/dashboard` | 控制台首页 |
 | `/devices`、`/devices/:id` | 设备列表 / 设备详情（IPv4 修改、路由审批、删除） |
 | `/network`、`/dns`、`/relays`、`/routes` | 网段管理、DNS、默认/公共/托管中继、路由与出口节点（独立功能页） |
+| `/shares` | 设备分享收件箱与已发送记录：按用户名邀请、接受/拒绝、共享地址、双方撤销 |
 | `/topology` | 拓扑与连接（在线/离线分组、路由标签） |
 | `/permissions` | ACL / Grants 规则编辑、策略图、权限矩阵、组、高级 HuJSON、测试原因与版本恢复 |
 | `/api` | API 密钥与预授权密钥 |

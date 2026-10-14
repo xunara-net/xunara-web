@@ -3,6 +3,7 @@ defineProps<{ name: string }>();
 const paths: Record<string, string> = {
   home: "M3 10 12 3l9 7v10H3Z M9 20v-7h6v7",
   device: "M3 4h18v12H3Z M8 21h8 M12 16v5",
+  share: "M18 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M5 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M18 16a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M8 10l7-4 M8 14l7 4",
   network: "M12 8V3 M4 21v-5h16v5 M12 21v-5 M7 8h10v5H7Z",
   topology: "M12 5 4 18h16Z M9 2h6v6H9Z M1 16h6v6H1Z M17 16h6v6h-6Z",
   lock: "M5 10h14v11H5Z M8 10V6a4 4 0 0 1 8 0v4 M12 14v3",

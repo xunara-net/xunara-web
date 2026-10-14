@@ -9,6 +9,7 @@ import DataTable from "../components/DataTable.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import AddDeviceDialog from "../components/AddDeviceDialog.vue";
 import DeviceExpiryDialog from "../components/DeviceExpiryDialog.vue";
+import DeviceShareDialog from "../components/DeviceShareDialog.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authorizationLabel, canManageNetwork } from "../utils/devices";
 
@@ -20,7 +21,9 @@ const csrfToken = ref("");
 const busy = ref<Record<string, boolean>>({});
 const addOpen = ref(false);
 const expiryReference = ref("");
+const shareMachine = ref<Machine | null>(null);
 const canWrite = computed(() => canManageNetwork(session.state.user?.role));
+const canShare = computed(() => canWrite.value && session.state.capabilities.includes("sharing.accounts"));
 
 const machineColumns = [
   { key: "hostname", title: "设备" },
@@ -95,7 +98,7 @@ async function remove(machine: Machine) {
 
 <template>
   <PageHeader title="设备" desc="浏览器接入需要审批；设备预授权密钥可直接加入，仍受设备额度与访问策略约束。">
-    <template #actions><button class="btn primary" @click="addOpen = true">添加设备</button><button class="btn" :disabled="loading" @click="load">刷新</button></template>
+    <template #actions><button class="btn primary" @click="addOpen = true">添加设备</button><router-link class="btn" to="/shares">设备分享</router-link><button class="btn" :disabled="loading" @click="load">刷新</button></template>
   </PageHeader>
 
   <div v-if="error" class="alert error" style="margin-bottom: 16px">{{ error }}</div>
@@ -147,6 +150,7 @@ async function remove(machine: Machine) {
       <template #cell-actions="{ row }">
         <div class="row-actions">
           <router-link class="btn small" :to="`/devices/${row.id}`">详情</router-link>
+          <button v-if="canShare" class="btn small" :aria-label="`分享 ${row.hostname || row.id}`" :disabled="busy[row.stableId] || row.expired" @click="shareMachine = row">分享</button>
           <button v-if="canWrite" class="btn small" :aria-label="`有效期设置 ${row.hostname || row.id}`" :disabled="busy[row.stableId]" @click="expiryReference = row.stableId">有效期设置</button>
           <button v-if="canWrite" class="btn small danger" :disabled="busy[row.stableId]" @click="remove(row)">删除</button>
         </div>
@@ -155,4 +159,5 @@ async function remove(machine: Machine) {
   </div>
   <AddDeviceDialog :open="addOpen" @close="addOpen = false" />
   <DeviceExpiryDialog v-if="expiryReference" :open="Boolean(expiryReference)" :reference="expiryReference" @close="expiryReference = ''" @updated="load" />
+  <DeviceShareDialog v-if="shareMachine" :open="Boolean(shareMachine)" :reference="shareMachine.stableId" :hostname="shareMachine.hostname" @close="shareMachine = null" />
 </template>

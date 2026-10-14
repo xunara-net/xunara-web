@@ -35,7 +35,7 @@ async function runDeviceCoreSmoke({ page, memberPage, origin, state, mark }) {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin + '/devices');
   const navigation = page.getByRole('navigation', { name: '功能菜单', exact: true });
-  assert.equal(await navigation.getByRole('link').count(), 7);
+  assert.equal(await navigation.getByRole('link').count(), 8);
   assert.equal(await navigation.getByRole('button', { name: '更多管理与设置', exact: true }).getAttribute('aria-expanded'), 'false');
   await page.goto(origin + '/security');
   await navigation.getByRole('link', { name: '安全中心', exact: true }).waitFor();

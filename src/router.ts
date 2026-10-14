@@ -23,6 +23,7 @@ const routes = [
   { path: "/reset-password", name: "reset-password", component: () => import("./views/PasswordRecoveryView.vue"), meta: { public: true, bare: true } },
   { path: "/change-password", name: "change-password", component: () => import("./views/ChangePasswordView.vue"), meta: { bare: true } },
   { path: "/devices", name: "devices", component: () => import("./views/DevicesView.vue") },
+  { path: "/shares", name: "shares", component: () => import("./views/SharesView.vue") },
   {
     path: "/devices/:id",
     name: "device",

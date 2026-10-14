@@ -160,6 +160,17 @@ export function errorMessage(err: unknown): string {
 }
 
 const codeMessages: Record<string, string> = {
+  SHARE_RECIPIENT_UNAVAILABLE: "无法向该账号分享，请核对对方在本平台的用户名；重名、禁用或不存在的账户不能接收",
+  SHARE_UNAVAILABLE: "设备或账户状态已变化，请联系对方确认并重新发出分享",
+  SHARE_FORBIDDEN: "只有有效的人类会话和网络管理员可以发出或管理分享",
+  SHARING_DISABLED: "此部署未启用跨网络设备分享",
+  SHARE_NOT_FOUND: "分享或设备不存在，或不属于当前账户",
+  SHARE_SAME_NETWORK: "同一网络的成员使用访问权限规则，无需跨网络分享",
+  SHARE_EXISTS: "已向该用户发出这台设备的有效分享，请在分享列表查看，不要重复发送",
+  SHARE_CHANGED: "分享已被其他操作修改，请刷新列表后再操作",
+  SHARE_TAILNET_LOCKED: "启用了 Tailnet Lock 的网络暂不支持跨网络分享",
+  SHARES_UNAVAILABLE: "暂时无法确认分享结果，请刷新列表核对后再操作",
+  SHARE_RATE_LIMITED: "分享邀请发送过于频繁，请稍后再试",
   ACCOUNT_EXPORT_UNAVAILABLE: "暂时无法准备导出，未生成下载文件；请稍后显式重试",
   ACCOUNT_EXPORT_TOO_LARGE: "数据超过导出上限，请缩小登录记录日期范围或联系管理员；不会截断记录",
   ACCOUNT_EXPORT_RATE_LIMITED: "导出请求过多，请等待约 15 分钟后重试",

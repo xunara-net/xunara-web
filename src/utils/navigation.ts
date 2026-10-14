@@ -1,6 +1,7 @@
 export const coreNavigation = [
   { to: "/dashboard", label: "控制台首页", icon: "home" },
   { to: "/devices", label: "设备", icon: "device" },
+  { to: "/shares", label: "设备分享", icon: "share" },
   { to: "/network", label: "网络", icon: "network" },
   { to: "/permissions", label: "访问权限", icon: "lock" },
   { to: "/dns", label: "DNS", icon: "dns" },

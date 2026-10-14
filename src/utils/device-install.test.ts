@@ -108,7 +108,7 @@ describe("device installation and core-first navigation", () => {
     expect(deviceInstallCommand("https://tenant.example.test", { ...options, platform: "windows" }, permissions)).not.toContain("curl");
   });
   it("keeps core functions first without deleting secondary routes or exposing owner configuration", () => {
-    expect(coreNavigation.map((item) => item.to)).toEqual(["/dashboard", "/devices", "/network", "/permissions", "/dns", "/routes", "/relays"]);
+    expect(coreNavigation.map((item) => item.to)).toEqual(["/dashboard", "/devices", "/shares", "/network", "/permissions", "/dns", "/routes", "/relays"]);
     expect(managementNavigation("owner").some((item) => item.to === "/authentication")).toBe(true);
     expect(managementNavigation("member").some((item) => item.to === "/authentication")).toBe(false);
     expect(managementNavigation("owner").some((item) => item.to === "/settings")).toBe(true);
