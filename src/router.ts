@@ -63,7 +63,7 @@ router.beforeEach(async (to) => {
   }
   if (to.meta.public) return true;
   if (!session.state.authenticated) {
-    return { name: "login", query: { return_to: to.fullPath } };
+    return { name: "login", query: to.fullPath === "/dashboard" ? {} : { return_to: to.fullPath } };
   }
   return true;
 });

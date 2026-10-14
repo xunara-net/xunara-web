@@ -14,19 +14,7 @@ export function workspaceURL(origin: string, organization: string): string {
   const parsed = new URL(origin);
   if (parsed.origin !== window.location.origin || parsed.username || parsed.password || parsed.search || parsed.hash ||
       !["", "/"].includes(parsed.pathname) || !organizationPattern.test(organization)) {
-    throw new Error("网络标识或控制台地址无效，请使用注册后提供的网络标识");
+    throw new Error("账户控制台地址无效，请重新登录");
   }
   return `/t/${organization}`;
-}
-
-export function rememberWorkspace(organization: string): void {
-  if (!organizationPattern.test(organization)) return;
-  try { localStorage.setItem("xunara_workspace", organization); } catch { /* 禁止存储不影响登录。 */ }
-}
-
-export function rememberedWorkspace(): string {
-  try {
-    const value = localStorage.getItem("xunara_workspace") ?? "";
-    return organizationPattern.test(value) ? value : "";
-  } catch { return ""; }
 }

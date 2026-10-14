@@ -338,8 +338,10 @@ export interface AuditEvent {
 }
 
 export interface Overview {
-  version: string;
-  serverUrl: string;
+	version: string;
+	serverUrl: string;
+	clientLoginUrl?: string;
+	nativeGateway?: boolean;
   domain: string;
   machines: { total: number; online: number };
   users: number;
@@ -422,6 +424,7 @@ export interface MemberInvitationRequest {
 /** Self-service sign-up: where a deployment creates a tenant per account. */
 export interface SelfServiceInfo {
   endpoint: string;
+  login_endpoint?: string;
   domain_suffix?: string;
   plan?: string;
   console_url?: string;

@@ -97,13 +97,17 @@ async function provisionTenant(endpoint: string, body: { login: string; display_
   return result;
 }
 
-export async function loginWorkspace(origin: string, organization: string, login: string, password: string): Promise<string> {
-  const target = workspaceURL(origin, organization);
-  const payload = await api<SnapshotPayload>(`${target}/api/v1/auth/login`, { method: "POST", body: { login, password }, redirect: "error" });
-  if (payload.authenticated !== true || payload.tenant?.organization_id !== organization) {
-    throw new ApiError(502, "API_RESPONSE_INVALID: tenant login was not confirmed");
+export async function loginAccount(endpoint: string, login: string, password: string): Promise<{ path: string; passwordChangeRequired: boolean }> {
+  if (endpoint !== "/api/self-service/v1/login") throw new ApiError(502, "API_RESPONSE_INVALID: invalid login endpoint");
+  const payload = await api<{ console_path: string; session: SnapshotPayload }>(endpoint,
+    { method: "POST", body: { login, password }, redirect: "error" });
+  const path = payload?.console_path;
+  if (typeof path !== "string" || (path !== "" && !/^\/t\/[a-z0-9][a-z0-9-]{0,31}$/.test(path)) ||
+      payload.session?.authenticated !== true ||
+      (path !== "" && path !== `/t/${payload.session.tenant?.organization_id}`)) {
+    throw new ApiError(502, "API_RESPONSE_INVALID: account login was not confirmed");
   }
-  return target;
+  return { path, passwordChangeRequired: payload.session.user?.password_change_required === true };
 }
 
 export const login = async (login: string, password: string) =>
@@ -161,11 +165,16 @@ export const deleteMachine = (ref: string | number) =>
 export const listPendingDevices = async (): Promise<PendingDevice[]> =>
   requiredList(await api<unknown>("/api/v1/devices"), "devices");
 
-export const approveDevice = (id: string) =>
-  api<void>(`/api/v1/devices/${id}/approve`, { method: "POST", body: {} });
+export const getDeviceApprovals = async (): Promise<{ devices: PendingDevice[]; csrfToken: string }> => {
+  const payload = await api<Record<string, unknown>>("/api/v1/devices");
+  return { devices: requiredList(payload, "devices"), csrfToken: typeof payload.csrf_token === "string" ? payload.csrf_token : "" };
+};
 
-export const denyDevice = (id: string) =>
-  api<void>(`/api/v1/devices/${id}/deny`, { method: "POST", body: {} });
+export const approveDevice = (id: string, csrfToken: string) =>
+  api<void>(`/api/v1/devices/${encodeURIComponent(id)}/approve`, { method: "POST", body: {}, headers: { "X-CSRF-Token": csrfToken } });
+
+export const denyDevice = (id: string, csrfToken: string) =>
+  api<void>(`/api/v1/devices/${encodeURIComponent(id)}/deny`, { method: "POST", body: {}, headers: { "X-CSRF-Token": csrfToken } });
 
 // ---- network --------------------------------------------------------------
 

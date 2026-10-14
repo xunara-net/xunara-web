@@ -16,6 +16,7 @@ const loading = ref(true);
 const error = ref("");
 const machines = ref<Machine[]>([]);
 const pending = ref<PendingDevice[]>([]);
+const csrfToken = ref("");
 const busy = ref<Record<string, boolean>>({});
 const addOpen = ref(false);
 const expiryReference = ref("");
@@ -33,8 +34,12 @@ const machineColumns = [
 async function load() {
   loading.value = true;
   error.value = "";
+  csrfToken.value = "";
   try {
-    [machines.value, pending.value] = await Promise.all([ep.listMachines(), ep.listPendingDevices()]);
+    const [deviceList, approvals] = await Promise.all([ep.listMachines(), ep.getDeviceApprovals()]);
+    machines.value = deviceList;
+    pending.value = approvals.devices;
+    csrfToken.value = approvals.csrfToken;
   } catch (err) {
     error.value = errorMessage(err);
   } finally {
@@ -45,10 +50,10 @@ async function load() {
 onMounted(load);
 
 async function approve(device: PendingDevice) {
-  if (!canWrite.value) return;
+  if (!canWrite.value || !csrfToken.value || loading.value || error.value) return;
   busy.value[device.id] = true;
   try {
-    await ep.approveDevice(device.id);
+    await ep.approveDevice(device.id, csrfToken.value);
     session.toast("success", `已批准 ${device.hostname || "设备"}`);
     await load();
   } catch (err) {
@@ -59,10 +64,10 @@ async function approve(device: PendingDevice) {
 }
 
 async function deny(device: PendingDevice) {
-  if (!canWrite.value) return;
+  if (!canWrite.value || !csrfToken.value || loading.value || error.value) return;
   busy.value[device.id] = true;
   try {
-    await ep.denyDevice(device.id);
+    await ep.denyDevice(device.id, csrfToken.value);
     session.toast("info", `已拒绝 ${device.hostname || "设备"}`);
     await load();
   } catch (err) {
@@ -113,8 +118,8 @@ async function remove(machine: Machine) {
       <template #cell-created="{ row }">{{ formatTime(row.created) }}</template>
       <template #cell-actions="{ row }">
         <div v-if="canWrite" class="row-actions">
-          <button class="btn small primary" :disabled="busy[row.id]" @click="approve(row)">批准</button>
-          <button class="btn small danger" :disabled="busy[row.id]" @click="deny(row)">拒绝</button>
+          <button class="btn small primary" :disabled="busy[row.id] || !csrfToken || loading || !!error" @click="approve(row)">批准</button>
+          <button class="btn small danger" :disabled="busy[row.id] || !csrfToken || loading || !!error" @click="deny(row)">拒绝</button>
         </div>
       </template>
     </DataTable>

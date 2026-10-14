@@ -7,7 +7,7 @@ import { session } from "../store";
 import { getPasskey, passkeyAvailability, passkeyErrorMessage } from "../utils/passkey";
 import { legacyProviderLoginURL, loginDestination, providerLoginURL } from "../utils/auth";
 import type { ProvidersPayload } from "../api/types";
-import { consolePath, rememberedWorkspace, rememberWorkspace, workspaceURL } from "../utils/console";
+import { consolePath } from "../utils/console";
 
 const route = useRoute();
 const router = useRouter();
@@ -19,9 +19,7 @@ const error = ref("");
 const info = ref<ProvidersPayload | null>(null);
 const loading = ref(true);
 const loadError = ref("");
-const personalNetwork = ref(true);
-const organization = ref(rememberedWorkspace());
-const sharedConsole = computed(() => info.value?.self_service?.console_url ?? "");
+const accountLoginEndpoint = computed(() => info.value?.self_service?.login_endpoint ?? "");
 const providers = computed(() => info.value?.providers ?? []);
 const providerLinks = computed(() => providers.value.map((provider) => ({
   ...provider, url: providerLoginURL(provider.start_url, route.query.return_to, provider.id),
@@ -65,12 +63,11 @@ async function submit() {
   error.value = "";
   busy.value = "password";
   try {
-    if (sharedConsole.value && personalNetwork.value) {
-      const id = organization.value.trim().toLowerCase();
-      const target = await ep.loginWorkspace(sharedConsole.value, id, login.value, password.value);
-      rememberWorkspace(id);
+    if (accountLoginEndpoint.value) {
+      const target = await ep.loginAccount(accountLoginEndpoint.value, login.value, password.value);
       password.value = "";
-      window.location.assign(`${target}/dashboard`);
+      const destination = target.passwordChangeRequired ? "/change-password" : loginDestination(route.query.return_to).path;
+      window.location.assign(`${target.path}${destination}`);
       return;
     }
     await session.login(login.value, password.value);
@@ -80,16 +77,6 @@ async function submit() {
   } finally {
     busy.value = "";
   }
-}
-
-function openWorkspace() {
-  error.value = "";
-  try {
-    const id = organization.value.trim().toLowerCase();
-    const target = workspaceURL(sharedConsole.value, id);
-    rememberWorkspace(id);
-    window.location.assign(`${target}/login`);
-  } catch (err) { error.value = errorMessage(err); }
 }
 
 async function passkeyLogin() {
@@ -148,20 +135,6 @@ async function afterLogin() {
       </div>
 
       <form v-if="!loading && !loadError && localLogin" style="margin-top: 20px" @submit.prevent="submit">
-        <template v-if="sharedConsole">
-          <div class="field">
-            <label for="login-scope">登录范围</label>
-            <select id="login-scope" v-model="personalNetwork" class="input" :disabled="!!busy">
-              <option :value="true">我的独立网络（免费注册账号）</option>
-              <option :value="false">当前网络（管理员或受邀成员）</option>
-            </select>
-          </div>
-          <div v-if="personalNetwork" class="field">
-            <label for="organization">网络标识</label>
-            <input id="organization" v-model="organization" class="input" autocomplete="off" maxlength="32" placeholder="注册时获得的标识，例如 alice" :disabled="!!busy" />
-            <p class="hint">独立网络账号不属于入口站。可从专属链接进入；网络标识通常与注册登录名一致。</p>
-          </div>
-        </template>
         <div class="field">
           <label for="login">登录名</label>
           <input id="login" v-model="login" class="input" autocomplete="username" placeholder="请输入注册时的登录名" />
@@ -170,21 +143,17 @@ async function afterLogin() {
           <label for="password">密码</label>
           <input id="password" v-model="password" class="input" type="password" autocomplete="current-password" placeholder="密码" />
         </div>
-        <button class="btn primary" style="width: 100%; height: 36px" :disabled="!!busy || setupRequired || !login || !password || (!!sharedConsole && personalNetwork && !organization.trim())">
+        <button class="btn primary" style="width: 100%; height: 36px" :disabled="!!busy || setupRequired || !login || !password">
           {{ busy === 'password' ? "登录中…" : "登录" }}
         </button>
       </form>
 
-      <div v-if="sharedConsole && personalNetwork" style="margin-top: 16px">
-        <button class="btn" style="width: 100%" :disabled="!!busy || !organization.trim()" @click="openWorkspace">前往我的网络登录页</button>
-        <p class="hint" style="margin-top: 8px">在网络自己的登录页使用通行密钥、第三方登录或密码恢复。</p>
-      </div>
-      <div v-else-if="passkeys" style="margin-top: 16px">
+      <div v-if="passkeys" style="margin-top: 16px">
         <button class="btn" style="width: 100%" :disabled="!!busy || setupRequired || !availability.supported" @click="passkeyLogin">{{ busy === 'passkey' ? '等待设备验证…' : '使用通行密钥登录' }}</button>
         <p class="hint" style="margin-top: 8px">{{ availability.supported ? '使用已绑定的指纹、面容、设备 PIN 或安全密钥。' : availability.reason }}</p>
       </div>
 
-      <template v-if="providers.length && !(sharedConsole && personalNetwork)">
+      <template v-if="providers.length">
         <div style="display: flex; align-items: center; gap: 10px; margin: 18px 0; color: var(--text-faint); font-size: 12px">
           <div style="flex: 1; height: 1px; background: var(--border)" />
           或使用第三方账号

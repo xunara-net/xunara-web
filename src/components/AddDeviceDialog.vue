@@ -15,6 +15,7 @@ import ModalDialog from "./ModalDialog.vue";
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 const serverURL = ref(""), error = ref(""), loading = ref(false);
+const nativeGateway = ref(false);
 const enrollment = ref<EnrollmentCapabilities | null>(null), enrollmentError = ref(""), generating = ref(false);
 const token = ref(""), generatedExpiry = ref(""), ttlSeconds = ref(900);
 const copied = ref(false), copyError = ref("");
@@ -66,6 +67,7 @@ async function load() {
   if (generating.value) return;
   const request = ++sequence;
   serverURL.value = ""; error.value = ""; loading.value = true;
+  nativeGateway.value = false;
   enrollment.value = null; enrollmentError.value = "";
   networkRanges.value = []; networkError.value = "";
   await Promise.all([
@@ -79,12 +81,15 @@ async function load() {
     (async () => {
       try {
         const overview = await getOverview();
-        const configured = clientLoginServer(overview.serverUrl);
+        const configured = clientLoginServer(overview.clientLoginUrl ?? overview.serverUrl);
         // 共享入口按路径只代理网页 API；用主站接入会落到入口租户，不能静默兜底。
-        if (sharedConsole && configured === window.location.origin) {
+        if (sharedConsole && configured === window.location.origin && overview.nativeGateway !== true) {
           throw new Error("本网络的设备接入地址误设为共享网页入口。请联系平台管理员配置独立接入地址，不要使用主站地址或带 /t/ 的网页地址加入设备。");
         }
-        if (active && props.open && request === sequence) serverURL.value = configured;
+        if (active && props.open && request === sequence) {
+          serverURL.value = configured;
+          nativeGateway.value = overview.nativeGateway === true;
+        }
       } catch (failure) { if (active && props.open && request === sequence) error.value = errorMessage(failure); }
     })(),
     (async () => {
@@ -129,7 +134,11 @@ async function copy(value: string) {
       <div v-if="error" class="alert error" role="alert">{{ error }}<button class="btn small" @click="load">重新读取接入地址</button></div>
       <label class="field"><span class="label">设备平台</span><select v-model="options.platform" class="select" aria-label="设备平台" :disabled="generating"><option value="linux">Linux</option><option value="windows">Windows</option><option value="macos">macOS</option><option value="android">Android</option><option value="ios">iPhone / iPad</option></select></label>
       <template v-if="serverURL">
-        <div v-if="sharedConsole" class="alert warning device-address-notice" role="note" aria-label="设备接入地址说明">
+        <div v-if="nativeGateway" class="alert info device-address-notice" role="note" aria-label="设备接入地址说明">
+          <strong>使用统一接入地址</strong>
+          <p>在浏览器中登录你的账户，再确认添加设备。无需网络标识；其他账户的登录不会自动批准设备。</p>
+        </div>
+        <div v-else-if="sharedConsole" class="alert warning device-address-notice" role="note" aria-label="设备接入地址说明">
           <strong>网页入口不等于设备接入地址</strong>
           <p>本网络配置的设备地址：<code>{{ serverURL }}</code></p>
           <p>该地址需能正确解析，HTTPS 还需匹配且受信任的证书。网页能登录不代表设备地址可用；无法连接时请联系平台管理员修正配置，不要替换成当前网页地址。这里尚未检测设备地址的连通性。</p>

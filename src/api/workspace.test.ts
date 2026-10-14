@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loginWorkspace, signupTenant } from "./endpoints";
+import { loginAccount, signupTenant } from "./endpoints";
 import { api } from "./client";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -10,23 +10,23 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("explicit workspace signup and login", () => {
-  it("signs in only to the selected organization without global username lookup", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ authenticated: true, tenant: { organization_id: "alice" } })));
-    expect(await loginWorkspace("https://app.example.test", "alice", "owner", "private-password")).toBe("/t/alice");
+describe("ordinary account signup and login", () => {
+  it("routes by authenticated account without asking for a network identifier", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ console_path: "/t/alice", session: { authenticated: true, tenant: { organization_id: "alice" } } })));
+    expect(await loginAccount("/api/self-service/v1/login", "owner", "private-password")).toEqual({ path: "/t/alice", passwordChangeRequired: false });
     const [url, options] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("https://app.example.test/t/alice/api/v1/auth/login");
+    expect(String(url)).toBe("https://app.example.test/api/self-service/v1/login");
     expect(JSON.parse(String(options?.body))).toEqual({ login: "owner", password: "private-password" });
     expect(String(url)).not.toContain("private-password");
   });
-  it("rejects credentials sent to a foreign site or malformed organization", async () => {
-    await expect(loginWorkspace("https://foreign.example.test", "alice", "owner", "private-password")).rejects.toThrow();
-    await expect(loginWorkspace("https://app.example.test", "../alice", "owner", "private-password")).rejects.toThrow();
+  it("rejects credentials sent to a foreign site or unrecognized endpoint", async () => {
+    await expect(loginAccount("https://foreign.example.test", "owner", "private-password")).rejects.toThrow();
+    await expect(loginAccount("/api/v1/auth/login", "owner", "private-password")).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it("rejects a successful but wrong-tenant acknowledgement", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ authenticated: true, tenant: { organization_id: "bob" } })));
-    await expect(loginWorkspace("https://app.example.test", "alice", "owner", "private-password")).rejects.toThrow();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ console_path: "/t/alice", session: { authenticated: true, tenant: { organization_id: "bob" } } })));
+    await expect(loginAccount("/api/self-service/v1/login", "owner", "private-password")).rejects.toThrow();
   });
   it("never automatically redirects a signup to an unvalidated console", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ authenticated: true, handoff: true,

@@ -6,7 +6,7 @@ import { ApiError, errorMessage } from "../api/client";
 import { session } from "../store";
 import type { ProvidersPayload, TenantSignupResult } from "../api/types";
 import { beginInvitedIdentity } from "../api/account-identities";
-import { consolePath, rememberWorkspace } from "../utils/console";
+import { consolePath } from "../utils/console";
 import { providerLoginURL } from "../utils/auth";
 
 // One registration page, three deployment shapes:
@@ -106,7 +106,6 @@ async function submit() {
         password: password.value,
       });
       password.value = "";
-      rememberWorkspace(created.value.organization.id);
       // A shared parent-domain cookie means the browser is already signed in
       // on the tenant host; otherwise the tenant host asks once for the
       // password that was just set.

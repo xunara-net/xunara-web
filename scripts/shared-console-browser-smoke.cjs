@@ -15,6 +15,7 @@ const dist = path.resolve(__dirname, '../dist');
 const password = crypto.randomBytes(24).toString('base64url');
 const platformToken = crypto.randomBytes(32).toString('base64url');
 const errors = [], completed = [];
+const nativeGateway = process.env.SMOKE_NATIVE_GATEWAY === '1';
 let daemon, browser, proxy, origin, control, stage = 'startup';
 const sleep = (duration) => new Promise((resolve) => setTimeout(resolve, duration));
 function mark(value) { stage = value; completed.push(value); console.log(JSON.stringify({ stage })); }
@@ -75,7 +76,7 @@ async function main() {
   const configuration = path.join(state, 'organizations.json');
   fs.writeFileSync(configuration, JSON.stringify({ organizations: [{ id: 'portal', name: '单证书注册验收', domains: ['control.example.test'],
     server_url: origin, state_dir: path.join(state, 'portal'), registration: 'open' }],
-    self_service: { site: 'portal', domain_suffix: 'unreachable.invalid', console_url: origin, plan: 'free' } }));
+    self_service: { site: 'portal', domain_suffix: 'unreachable.invalid', console_url: origin, plan: 'free', native_gateway: nativeGateway } }));
   const log = fs.openSync(path.join(state, 'daemon.log'), 'a', 0o600);
   daemon = spawn(process.env.SMOKE_XUNARAD, ['-listen', new URL(control).host, '-grpc-listen', '127.0.0.1:0', '-org-config', configuration,
     '-platform-state-dir', state, '-plans', 'builtin', '-network-pool', '100.100.0.0/16', '-log-level', 'error'],
@@ -118,15 +119,18 @@ async function main() {
   const initialKeys = await page.evaluate(async () => (await fetch('/t/shared-owner/api/v1/auth-keys')).json());
   await page.getByRole('button', { name: '添加第一台设备', exact: true }).click();
   const enrollmentDialog = page.getByRole('dialog', { name: '添加设备', exact: true });
-  const nativeServer = 'https://shared-owner.unreachable.invalid';
+  const nativeServer = nativeGateway ? origin : 'https://shared-owner.unreachable.invalid';
   await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).waitFor();
   const nativeCommand = await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).textContent();
   assert.ok(nativeCommand.includes('--login-server=' + JSON.stringify(nativeServer)));
-  assert.equal(nativeCommand.includes('--login-server=' + JSON.stringify(origin)), false);
+  assert.equal(nativeCommand.includes('--login-server=' + JSON.stringify(origin)), nativeGateway);
   assert.equal(nativeCommand.includes('--auth-key='), false);
   const notice = enrollmentDialog.getByRole('note', { name: '设备接入地址说明', exact: true });
-  assert.ok((await notice.innerText()).includes(nativeServer));
-  assert.ok((await notice.innerText()).includes('尚未检测设备地址的连通性'));
+  if (nativeGateway) assert.ok((await notice.innerText()).includes('使用统一接入地址'));
+  else {
+    assert.ok((await notice.innerText()).includes(nativeServer));
+    assert.ok((await notice.innerText()).includes('尚未检测设备地址的连通性'));
+  }
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
@@ -152,6 +156,8 @@ async function main() {
   await page.route(overviewPattern, async (route) => {
     assert.equal(route.request().method(), 'GET');
     const payload = { ...overviewSnapshot.payload };
+    delete payload.clientLoginUrl;
+    payload.nativeGateway = false;
     if (addressOverride === undefined) delete payload.serverUrl;
     else payload.serverUrl = addressOverride;
     await route.fulfill({ status: 200, contentType: 'application/json', json: payload });
@@ -199,11 +205,12 @@ async function main() {
   assert.equal(organizations.json().organizations.filter((entry) => entry.id.startsWith('shared-owner')).length, 1);
   assert.equal(await duplicatePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
   await duplicateContext.close();
-  mark('portal-login-selects-workspace-after-signout');
+  mark('portal-login-identifies-account-after-signout');
   await logout(page);
   mark('workspace-cookie-revoked-before-portal-relogin');
   await page.goto(origin + '/login');
-  await page.getByLabel('网络标识', { exact: true }).fill('shared-owner');
+  assert.equal(await page.getByLabel('网络标识', { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('登录范围', { exact: true }).count(), 0);
   await page.getByLabel('登录名', { exact: true }).fill('shared-owner');
   await page.getByLabel('密码', { exact: true }).fill(password);
   await page.getByRole('button', { name: '登录', exact: true }).click();
