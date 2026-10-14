@@ -55,6 +55,10 @@ describe("ApiError", () => {
 });
 
 describe("errorMessage", () => {
+  it("explains duplicate signup without suggesting that a new network was created", () => {
+    expect(errorMessage(new ApiError(409, "LOGIN_NAME_TAKEN: already registered"))).toContain("该用户名已注册");
+    expect(errorMessage(new ApiError(400, "LOGIN_NAME_INVALID: invalid name"))).toContain("128");
+  });
   it.each(["LOGIN_HISTORY_FAILED", "INVALID_LOGIN_HISTORY_PAGE"])("explains %s in Chinese without pretending history is empty", (code) => {
     expect(errorMessage(new ApiError(500, `${code}: read unavailable`))).toContain("登录记录");
     expect(errorMessage(new ApiError(500, `${code}: read unavailable`))).not.toContain("read unavailable");

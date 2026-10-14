@@ -210,7 +210,7 @@ async function submit() {
               autocomplete="username"
               placeholder="字母、数字、@ . _ - +"
             />
-            <div v-if="createsTenant" class="help">它将作为你的网络空间域名前缀。</div>
+            <div v-if="createsTenant" class="help">用户名在公开开户入口唯一，不区分大小写。它用于生成网络标识；已有账号请直接登录。</div>
           </div>
           <div class="field">
             <label for="display">昵称</label>

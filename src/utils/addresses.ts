@@ -63,3 +63,13 @@ export function normalizeAdditionalRanges(value: string, primary: string, reserv
   }
   return result;
 }
+
+export function promoteAllocationRange(configuration: Pick<AddressConfiguration, "ipv4_cidr" | "extra_ipv4_cidrs" | "supports_multi_ipv4" | "pending" | "reserved_ranges">, selected: string) {
+  if (!configuration.supports_multi_ipv4 || configuration.pending || !configuration.extra_ipv4_cidrs) throw new Error("网段状态尚未确认，请刷新后再设置默认网段");
+  const primary = normalizeAllocationRange(configuration.ipv4_cidr, configuration.reserved_ranges);
+  const next = normalizeAllocationRange(selected, configuration.reserved_ranges);
+  const additional = normalizeAdditionalRanges(configuration.extra_ipv4_cidrs.join("\n"), primary, configuration.reserved_ranges);
+  if (next === primary || !additional.includes(next)) throw new Error("请选择当前网络已有的附加网段");
+  // 默认池切换不删除原池，也不自动移动已有设备；仍需服务端预览与版本确认。
+  return { ipv4_cidr: next, extra_ipv4_cidrs: normalizeAdditionalRanges([primary, ...additional.filter((prefix) => prefix !== next)].join("\n"), next, configuration.reserved_ranges) };
+}

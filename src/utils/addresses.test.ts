@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocationCompatibilityWarning, allocationEditStatus, normalizeAllocationRange, normalizeAdditionalRanges, validateDeviceIPv4 } from "./addresses";
+import { allocationCompatibilityWarning, allocationEditStatus, normalizeAllocationRange, normalizeAdditionalRanges, promoteAllocationRange, validateDeviceIPv4 } from "./addresses";
 const reserved = ["0.0.0.0/8", "127.0.0.0/8", "169.254.0.0/16", "192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4", "100.100.0.0/24", "100.100.100.0/24", "100.115.92.0/23", "100.127.0.0/16"];
 describe("flexible IPv4 address management", () => {
   it("normalizes host bits and accepts safe private, public and small ranges", () => {
@@ -39,6 +39,16 @@ describe("flexible IPv4 address management", () => {
 });
 
 describe("allocation editing availability", () => {
+  const pools = { ipv4_cidr: "100.101.50.0/24", extra_ipv4_cidrs: ["192.168.60.0/24", "10.42.0.0/24"], supports_multi_ipv4: true, pending: false, reserved_ranges: reserved };
+  it("promotes an existing pool without removing the previous default or mutating the snapshot", () => {
+    const before = structuredClone(pools);
+    expect(promoteAllocationRange(pools, "192.168.60.20/24")).toEqual({ ipv4_cidr: "192.168.60.0/24", extra_ipv4_cidrs: ["100.101.50.0/24", "10.42.0.0/24"] });
+    expect(pools).toEqual(before);
+  });
+  it("does not add arbitrary pools or switch an unconfirmed allocation", () => {
+    for (const prefix of ["100.101.50.0/24", "192.168.70.0/24", "100.100.100.0/24", "invalid"]) expect(() => promoteAllocationRange(pools, prefix)).toThrow();
+    for (const incomplete of [{ ...pools, pending: true }, { ...pools, supports_multi_ipv4: false }, { ...pools, extra_ipv4_cidrs: undefined }]) expect(() => promoteAllocationRange(incomplete, "192.168.60.0/24")).toThrow("刷新");
+  });
   it("normalizes multiple pools and validates IPs in an additional pool", () => {
     expect(normalizeAdditionalRanges("192.168.60.15/24\n10.42.0.0/24", "100.101.50.0/24", reserved)).toEqual(["192.168.60.0/24", "10.42.0.0/24"]);
     expect(validateDeviceIPv4("192.168.60.20", ["100.101.50.0/24", "192.168.60.0/24"], reserved)).toBe("192.168.60.20");
