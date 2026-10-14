@@ -7,7 +7,8 @@ import { errorMessage } from "../api/client";
 import { session } from "../store";
 import { copyText } from "../utils/clipboard";
 import { deviceInstallCommand, type DeviceInstallOptions } from "../utils/device-install";
-import { clientLoginCommand, canManageNetwork } from "../utils/devices";
+import { clientLoginServer, canManageNetwork } from "../utils/devices";
+import { consoleBase } from "../utils/console";
 import { formatTime } from "../utils/format";
 import ModalDialog from "./ModalDialog.vue";
 
@@ -29,6 +30,7 @@ const permissions = computed(() => ({ allowSubnetRouter: Boolean(session.state.p
   allowExitNode: Boolean(session.state.plan?.allowExitNode), maxRoutes: session.state.plan?.maxRoutes ?? 0,
   networkRanges: networkRanges.value, checkScriptURL: window.location.origin + "/network-check.py" }));
 const mobilePlatform = computed(() => options.platform === "android" || options.platform === "ios");
+const sharedConsole = Boolean(consoleBase());
 const tokenMode = computed(() => options.authMethod === "token" && !mobilePlatform.value);
 const useToken = computed({ get: () => tokenMode.value,
   set: (enabled: boolean) => { options.authMethod = enabled ? "token" : "browser"; } });
@@ -77,8 +79,12 @@ async function load() {
     (async () => {
       try {
         const overview = await getOverview();
-        clientLoginCommand(overview.serverUrl, "linux");
-        if (active && props.open && request === sequence) serverURL.value = new URL(overview.serverUrl).origin;
+        const configured = clientLoginServer(overview.serverUrl);
+        // 共享入口按路径只代理网页 API；用主站接入会落到入口租户，不能静默兜底。
+        if (sharedConsole && configured === window.location.origin) {
+          throw new Error("本网络的设备接入地址误设为共享网页入口。请联系平台管理员配置独立接入地址，不要使用主站地址或带 /t/ 的网页地址加入设备。");
+        }
+        if (active && props.open && request === sequence) serverURL.value = configured;
       } catch (failure) { if (active && props.open && request === sequence) error.value = errorMessage(failure); }
     })(),
     (async () => {
@@ -123,6 +129,11 @@ async function copy(value: string) {
       <div v-if="error" class="alert error" role="alert">{{ error }}<button class="btn small" @click="load">重新读取接入地址</button></div>
       <label class="field"><span class="label">设备平台</span><select v-model="options.platform" class="select" aria-label="设备平台" :disabled="generating"><option value="linux">Linux</option><option value="windows">Windows</option><option value="macos">macOS</option><option value="android">Android</option><option value="ios">iPhone / iPad</option></select></label>
       <template v-if="serverURL">
+        <div v-if="sharedConsole" class="alert warning device-address-notice" role="note" aria-label="设备接入地址说明">
+          <strong>网页入口不等于设备接入地址</strong>
+          <p>本网络配置的设备地址：<code>{{ serverURL }}</code></p>
+          <p>该地址需能正确解析，HTTPS 还需匹配且受信任的证书。网页能登录不代表设备地址可用；无法连接时请联系平台管理员修正配置，不要替换成当前网页地址。这里尚未检测设备地址的连通性。</p>
+        </div>
         <template v-if="mobilePlatform">
           <a class="btn" :href="downloads[options.platform]" target="_blank" rel="noopener noreferrer">下载官方客户端</a>
           <p class="muted">在 APP 中选择自定义登录服务器，填入以下地址，再完成浏览器授权。</p>
@@ -192,6 +203,8 @@ async function copy(value: string) {
 .device-install-options { border-top: 1px solid var(--border); padding-top: 12px; }
 .device-install-options summary { cursor: pointer; }
 .device-install-options[open] summary { margin-bottom: 12px; }
+.device-address-notice { overflow-wrap: anywhere; }
+.device-address-notice p { margin-top: 8px; }
 .field { display: grid; gap: 6px; min-width: 0; margin-bottom: 0; }
 .field .label { color: var(--text-muted); font-size: 13px; }
 @media (max-width: 560px) { .input, .select { font-size: 16px; min-height: 40px; } }

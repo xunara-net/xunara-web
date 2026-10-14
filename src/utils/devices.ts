@@ -39,12 +39,21 @@ export function authKeyStatus(key: AuthKey, now = Date.now()): string {
 
 export type ClientPlatform = "linux" | "windows" | "macos" | "android" | "ios";
 
-export function clientLoginCommand(rawURL: string, platform: ClientPlatform): string {
-  const server = new URL(rawURL);
+// 这里只验证地址格式，不把它当成 DNS、证书或官方客户端连通性验证。
+export function clientLoginServer(rawURL: unknown): string {
+  const invalid = "服务器地址无效，请联系管理员核对部署配置";
+  if (typeof rawURL !== "string" || !rawURL.trim()) throw new Error(invalid);
+  let server: URL;
+  try { server = new URL(rawURL); } catch { throw new Error(invalid); }
   if (!["https:", "http:"].includes(server.protocol) || server.username || server.password || server.search || server.hash ||
     server.pathname !== "/" || !/^(\[[0-9a-f:]+\]|[a-z0-9.-]+)$/i.test(server.hostname)) {
-    throw new Error("服务器地址无效，请联系管理员核对部署配置");
+    throw new Error(invalid);
   }
+  return server.origin;
+}
+
+export function clientLoginCommand(rawURL: string, platform: ClientPlatform): string {
+  const server = clientLoginServer(rawURL);
   if (platform === "android" || platform === "ios") return "";
-  return `${platform === "linux" ? "sudo " : ""}tailscale ${platform === "macos" ? "login" : "up"} --login-server=${JSON.stringify(server.origin)}`;
+  return `${platform === "linux" ? "sudo " : ""}tailscale ${platform === "macos" ? "login" : "up"} --login-server=${JSON.stringify(server)}`;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AuthKey, Machine } from "../api/types";
-import { authorizationLabel, authKeyStatus, canManageNetwork, clientLoginCommand, filterDevices, routeChanges } from "./devices";
+import { authorizationLabel, authKeyStatus, canManageNetwork, clientLoginCommand, clientLoginServer, filterDevices, routeChanges } from "./devices";
 
 const laptop = { id: 1, stableId: "node-1", hostname: "Laptop", online: true, expired: false, ipv4: "100.100.1.2", os: "linux", tags: ["tag:server"] } as Machine;
 const phone = { ...laptop, id: 2, hostname: "Phone", online: false, os: "android", tags: [], approvedRoutes: ["10.0.0.0/24"] };
@@ -41,6 +41,13 @@ describe("device workbench", () => {
 });
 
 describe("official client instructions", () => {
+  it.each([undefined, null, "", "   ", false, 123, {}, "not-a-url"])("does not replace a missing or invalid address with the browser origin: %s", (value) => {
+    expect(() => clientLoginServer(value)).toThrow("服务器地址无效，请联系管理员核对部署配置");
+  });
+  it("normalizes the configured origin without asserting network readiness", () => {
+    expect(clientLoginServer("https://TENANT.example.test:443/")).toBe("https://tenant.example.test");
+    expect(clientLoginServer("https://tenant.unreachable.invalid:9090")).toBe("https://tenant.unreachable.invalid:9090");
+  });
   it("generates platform commands only for a valid configured origin", () => {
     expect(clientLoginCommand("http://tenant.test:9090", "linux")).toBe('sudo tailscale up --login-server="http://tenant.test:9090"');
     expect(clientLoginCommand("https://tenant.test", "windows")).toBe('tailscale up --login-server="https://tenant.test"');

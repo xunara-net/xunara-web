@@ -106,6 +106,84 @@ async function main() {
   assert.equal((await snapshot(page)).authenticated, false);
   const cookies = await context.cookies();
   assert.ok(cookies.some((cookie) => cookie.name === 'xunara_session_tenant_shared-owner' && cookie.path === '/t/shared-owner/' && cookie.httpOnly && cookie.secure));
+  mark('dashboard-uses-one-enrollment-dialog-without-legacy-inline-commands');
+  await page.getByRole('button', { name: '添加第一台设备', exact: true }).waitFor();
+  assert.equal(await page.getByText('三步把设备接进这个网络', { exact: true }).count(), 0);
+  assert.equal(await page.locator('.snippet').count(), 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+  const firstDeviceBounds = await page.getByRole('button', { name: '添加第一台设备', exact: true }).boundingBox();
+  assert.ok(firstDeviceBounds && firstDeviceBounds.y >= 0 && firstDeviceBounds.y + firstDeviceBounds.height <= 844);
+  await page.screenshot({ path: path.join(state, 'dashboard-onboarding-mobile.png') });
+  const initialKeys = await page.evaluate(async () => (await fetch('/t/shared-owner/api/v1/auth-keys')).json());
+  await page.getByRole('button', { name: '添加第一台设备', exact: true }).click();
+  const enrollmentDialog = page.getByRole('dialog', { name: '添加设备', exact: true });
+  const nativeServer = 'https://shared-owner.unreachable.invalid';
+  await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).waitFor();
+  const nativeCommand = await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).textContent();
+  assert.ok(nativeCommand.includes('--login-server=' + JSON.stringify(nativeServer)));
+  assert.equal(nativeCommand.includes('--login-server=' + JSON.stringify(origin)), false);
+  assert.equal(nativeCommand.includes('--auth-key='), false);
+  const notice = enrollmentDialog.getByRole('note', { name: '设备接入地址说明', exact: true });
+  assert.ok((await notice.innerText()).includes(nativeServer));
+  assert.ok((await notice.innerText()).includes('尚未检测设备地址的连通性'));
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    const bounds = await enrollmentDialog.getByRole('button', { name: '复制命令', exact: true }).boundingBox();
+    assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 844);
+  }
+  await enrollmentDialog.getByLabel('设备平台', { exact: true }).selectOption('android');
+  assert.equal(await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).count(), 0);
+  assert.equal(await enrollmentDialog.getByRole('button', { name: '复制控制面地址', exact: true }).count(), 1);
+  assert.equal(await enrollmentDialog.locator('pre').textContent(), nativeServer);
+  await enrollmentDialog.getByRole('button', { name: '关闭', exact: true }).click();
+  const afterOpenKeys = await page.evaluate(async () => (await fetch('/t/shared-owner/api/v1/auth-keys')).json());
+  assert.deepEqual(afterOpenKeys, initialKeys);
+  mark('missing-path-or-portal-native-address-never-falls-back-or-mints-a-token');
+  // 只在隔离浏览器注入读取故障；不改租户配置，不伪造 DNS / TLS 验收结果。
+  let addressOverride;
+  const overviewPattern = '**/t/shared-owner/api/v1/overview';
+  const overviewSnapshot = await page.evaluate(async () => {
+    const response = await fetch('/t/shared-owner/api/v1/overview');
+    return { status: response.status, payload: await response.json() };
+  });
+  assert.equal(overviewSnapshot.status, 200);
+  await page.route(overviewPattern, async (route) => {
+    assert.equal(route.request().method(), 'GET');
+    const payload = { ...overviewSnapshot.payload };
+    if (addressOverride === undefined) delete payload.serverUrl;
+    else payload.serverUrl = addressOverride;
+    await route.fulfill({ status: 200, contentType: 'application/json', json: payload });
+  });
+  for (const invalid of [undefined, '', origin, origin + '/t/shared-owner']) {
+    addressOverride = invalid;
+    await page.getByRole('button', { name: '添加设备', exact: true }).click();
+    await enrollmentDialog.getByRole('alert').waitFor();
+    assert.equal(await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).count(), 0);
+    assert.equal(await enrollmentDialog.getByRole('button', { name: '复制命令', exact: true }).count(), 0);
+    assert.equal(await enrollmentDialog.getByRole('button', { name: '生成一次性 Token', exact: true }).count(), 0);
+    await enrollmentDialog.getByLabel('设备平台', { exact: true }).selectOption('android');
+    assert.equal(await enrollmentDialog.getByRole('button', { name: '复制控制面地址', exact: true }).count(), 0);
+    await enrollmentDialog.getByRole('button', { name: '关闭', exact: true }).click();
+  }
+  await page.unroute(overviewPattern);
+  assert.deepEqual(await page.evaluate(async () => (await fetch('/t/shared-owner/api/v1/auth-keys')).json()), initialKeys);
+  await page.getByRole('button', { name: '添加设备', exact: true }).click();
+  await enrollmentDialog.getByLabel('设备安装命令', { exact: true }).waitFor();
+  await enrollmentDialog.getByRole('button', { name: '关闭', exact: true }).click();
+  mark('pending-first-device-guidance-links-to-the-current-network');
+  const pendingPattern = '**/t/shared-owner/api/v1/devices';
+  await page.route(pendingPattern, (route) => route.fulfill({ status: 200, contentType: 'application/json', json: {
+    devices: [{ id: 'isolated-pending', hostname: 'isolated-device', created: new Date().toISOString() }],
+  } }));
+  await page.reload();
+  await page.getByRole('heading', { name: '已有设备等待审批', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '添加第一台设备', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('link', { name: '查看待审批设备', exact: true }).getAttribute('href'), '/t/shared-owner/devices');
+  await page.unroute(pendingPattern);
+  await page.reload();
+  await page.getByRole('button', { name: '添加第一台设备', exact: true }).waitFor();
   mark('duplicate-public-signup-rejected-without-a-second-workspace');
   const duplicateContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const duplicatePage = await duplicateContext.newPage();

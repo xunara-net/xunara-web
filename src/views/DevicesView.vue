@@ -125,7 +125,7 @@ async function remove(machine: Machine) {
       <h2>已加入设备</h2>
       <span class="hint">共 {{ machines.length }} 台</span>
     </div>
-    <DataTable :columns="machineColumns" :rows="machines" :loading="loading" empty-title="还没有设备" empty-desc="在设备上安装官方 Tailscale 客户端，并用本服务器地址登录。">
+    <DataTable :columns="machineColumns" :rows="machines" :loading="loading" empty-title="还没有设备" empty-desc="点击「添加设备」，选择平台并按接入向导操作。">
       <template #cell-hostname="{ row }">
         <router-link :to="`/devices/${row.id}`" class="mono">{{ row.hostname || `设备 #${row.id}` }}</router-link>
         <div v-if="row.tags?.length" class="tag-list" style="margin-top: 4px">

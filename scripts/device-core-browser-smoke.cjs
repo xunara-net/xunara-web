@@ -20,6 +20,17 @@ async function runDeviceCoreSmoke({ page, memberPage, origin, state, mark }) {
     fs.mkdirSync(process.env.SMOKE_SCREENSHOT_DIR, { recursive: true, mode: 0o700 });
     await page.screenshot({ path: path.join(process.env.SMOKE_SCREENSHOT_DIR, name + '.png') });
   }
+  mark('dashboard-and-devices-share-the-same-single-copy-enrollment-flow');
+  await page.goto(origin + '/dashboard');
+  assert.equal(await page.getByText('三步把设备接进这个网络', { exact: true }).count(), 0);
+  assert.equal(await page.locator('.snippet').count(), 0);
+  await page.getByRole('button', { name: '添加设备', exact: true }).click();
+  const dashboardDialog = page.getByRole('dialog', { name: '添加设备', exact: true });
+  await dashboardDialog.getByLabel('设备安装命令', { exact: true }).waitFor();
+  assert.ok((await dashboardDialog.getByLabel('设备安装命令', { exact: true }).textContent()).includes('--login-server=' + JSON.stringify(origin)));
+  assert.equal(await dashboardDialog.getByRole('button', { name: '复制命令', exact: true }).count(), 1);
+  assert.equal(await dashboardDialog.getByRole('note', { name: '设备接入地址说明', exact: true }).count(), 0);
+  await dashboardDialog.getByRole('button', { name: '关闭', exact: true }).click();
   mark('core-navigation-default-collapsed-and-management-deep-links');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin + '/devices');
