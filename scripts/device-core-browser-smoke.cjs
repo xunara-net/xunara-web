@@ -76,6 +76,16 @@ async function runDeviceCoreSmoke({ page, memberPage, origin, state, mark }) {
   await dialog.getByLabel('设备安装命令').waitFor();
   await dialog.getByRole('button', { name: '关闭', exact: true }).click();
 
+  mark('network-conflict-check-is-read-only-for-members-and-does-not-change-entitlement');
+  await memberPage.goto(origin + '/network');
+  const memberGuide = memberPage.locator('.network-conflict-help');
+  assert.equal(await memberGuide.getAttribute('open'), null);
+  await memberGuide.getByText('网段冲突检查与处理', { exact: true }).click();
+  await memberGuide.getByLabel('只读网络冲突检查命令', { exact: true }).waitFor();
+  assert.equal(await memberGuide.getByRole('button', { name: '复制只读检查命令', exact: true }).isDisabled(), false);
+  assert.equal(await memberPage.getByRole('button', { name: '修改分配网段', exact: true }).isDisabled(), true);
+  assert.equal(/auth-key|sudo|tailscale (up|set)/.test(await memberGuide.getByLabel('只读网络冲突检查命令', { exact: true }).textContent()), false);
+
   mark('device-client-report-real-sqlite-read-and-independent-failure');
   assert.ok(path.basename(state).startsWith('xunara-console-smoke-'));
   assert.equal(fs.statSync(state).mode & 0o777, 0o700);

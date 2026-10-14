@@ -20,5 +20,7 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm run test
+      - name: Network conflict guard
+        run: python3 scripts/network-check-test.py
       - name: Build
         run: npm run build

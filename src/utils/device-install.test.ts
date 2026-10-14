@@ -1,10 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { deviceInstallCommand, type DeviceInstallOptions } from "./device-install";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { deviceInstallCommand, networkCheckCommand, type DeviceInstallOptions } from "./device-install";
 import { coreNavigation, managementNavigation } from "./navigation";
 
 const options: DeviceInstallOptions = { platform: "linux", installClient: true, acceptDNS: true, acceptRoutes: false,
   hostname: "", advertiseSubnets: false, routes: "", advertiseExitNode: false };
 const permissions = { allowSubnetRouter: true, allowExitNode: true, maxRoutes: 10 };
+
+describe("standalone read-only network diagnosis", () => {
+  it("checks the applied pools without enrollment or privileged network changes", () => {
+    const command = networkCheckCommand(["192.168.60.7/24", "100.101.50.0/24", "192.168.60.0/24"], "https://app.example.test/network-check.py");
+    expect(command).toContain('python3 - "192.168.60.0/24" "100.101.50.0/24"');
+    expect(command.split("\n")).toHaveLength(2);
+    expect(command).not.toMatch(/sudo|tailscale up|tailscale set|install.sh|auth-key|curl -k|ip route add/);
+    expect(deviceInstallCommand("https://tenant.example.test", { ...options, protectNetwork: true }, {
+      ...permissions, networkRanges: ["192.168.60.7/24", "100.101.50.0/24", "192.168.60.0/24"], checkScriptURL: "https://app.example.test/network-check.py",
+    })).toContain(command + " &&\n");
+  });
+  it.each([undefined, [], ["0.0.0.0/0"], ["192.168.60.0/24;echo bad"], Array(130).fill("100.101.50.0/24")])("does not generate a check from unknown or unsafe pools: %s", (ranges) => {
+    expect(() => networkCheckCommand(ranges, "https://app.example.test/network-check.py")).toThrow();
+  });
+  it.each([undefined, "http://app.example.test/network-check.py", "https://user:secret@app.example.test/network-check.py", "https://app.example.test/network-check.py?token=secret", "https://app.example.test/other.py", "https://$(id).example.test/network-check.py", "https://`id`.example.test/network-check.py"])("rejects insecure or interpolated script sources: %s", (source) => {
+    expect(() => networkCheckCommand(["100.101.50.0/24"], source)).toThrow();
+  });
+  it("allows loopback HTTP only for isolated local validation", () => {
+    expect(networkCheckCommand(["100.101.50.0/24"], "http://127.0.0.1:8080/network-check.py")).toContain("http://127.0.0.1:8080/network-check.py");
+  });
+  it.each([
+    { name: "download failure", source: "exit 22", status: 22 },
+    { name: "detected conflict", source: "printf '%s\\n' 'raise SystemExit(1)'", status: 1 },
+    { name: "unconfirmed snapshot", source: "printf '%s\\n' 'raise SystemExit(2)'", status: 2 },
+    { name: "successful check", source: "printf '%s\\n' 'raise SystemExit(0)'", status: 0 },
+  ])("propagates $name in a real shell before any following action", ({ source, status }) => {
+    const directory = mkdtempSync(join(tmpdir(), "xunara-check-shell-"));
+    try {
+      writeFileSync(join(directory, "curl"), "#!/bin/sh\n" + source + "\n", { mode: 0o700 });
+      const command = networkCheckCommand(["100.101.50.0/24"], "https://app.example.test/network-check.py");
+      const result = spawnSync("bash", ["-c", command + " && printf 'following-action'"], {
+        env: { ...process.env, PATH: directory + ":" + (process.env.PATH ?? "") }, encoding: "utf8", timeout: 5000,
+      });
+      expect(result.status).toBe(status);
+      expect(result.stdout).toBe(status === 0 ? "following-action" : "");
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+});
 
 describe("device installation and core-first navigation", () => {
   it("stops before installation when a read-only network check fails", () => {

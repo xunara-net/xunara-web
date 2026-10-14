@@ -1,4 +1,4 @@
-import { clientLoginCommand, type ClientPlatform } from "./devices";
+import { clientLoginCommand, clientLoginServer, type ClientPlatform } from "./devices";
 import { normalizeAllocationRange } from "./addresses";
 
 export interface DeviceInstallOptions {
@@ -14,6 +14,25 @@ export interface DeviceInstallOptions {
   protectNetwork?: boolean;
 }
 export interface DeviceInstallPermissions { allowSubnetRouter: boolean; allowExitNode: boolean; maxRoutes: number; networkRanges?: string[]; checkScriptURL?: string; }
+
+// 网络页的独立诊断与接入保护共用同一命令；只读取本机，不登录或修改客户端。
+export function networkCheckCommand(networkRanges: readonly string[] | undefined, rawSource: string | undefined): string {
+  let source: URL;
+  try { source = new URL(rawSource ?? ""); } catch { throw new Error("网络冲突检查需要正式 HTTPS 地址（本机验收除外）"); }
+  if (source.pathname !== "/network-check.py" || source.username || source.password || source.search || source.hash ||
+      source.protocol !== "https:" && !(source.protocol === "http:" && ["localhost", "127.0.0.1"].includes(source.hostname))) {
+    throw new Error("网络冲突检查需要正式 HTTPS 地址（本机验收除外）");
+  }
+  // JSON 双引号不能阻止 Shell 展开 $ 和反引号；下载主机也必须经过严格校验。
+  clientLoginServer(source.origin);
+  if (!Array.isArray(networkRanges) || !networkRanges.length || networkRanges.length > 129 ||
+      networkRanges.some((value) => typeof value !== "string")) {
+    throw new Error("地址池尚未确认，不能生成网络检查命令，请刷新网络配置");
+  }
+  const ranges = [...new Set(networkRanges.map((value) => normalizeAllocationRange(value, [])))].map((value) => JSON.stringify(value)).join(" ");
+  // curl 失败不能变成空脚本成功；检查失败会阻止安装和接入，不静默改 DNS 或路由。
+  return `xunara_check=$(curl -fsSL --max-time 30 ${JSON.stringify(source.href)}) &&\nprintf '%s\\n' "$xunara_check" | python3 - ${ranges}`;
+}
 
 export function deviceInstallCommand(serverURL: string, options: DeviceInstallOptions, permissions: DeviceInstallPermissions, authKey = ""): string {
   if (options.protectNetwork !== undefined && typeof options.protectNetwork !== "boolean") throw new Error("网络冲突保护选项未确认");
@@ -50,13 +69,7 @@ export function deviceInstallCommand(serverURL: string, options: DeviceInstallOp
   const login = [base, ...flags].join(" ");
   let preflight = "";
   if (options.platform === "linux" && options.protectNetwork) {
-    const source = new URL(permissions.checkScriptURL ?? "");
-    if (source.pathname !== "/network-check.py" || source.username || source.password || source.search || source.hash ||
-        source.protocol !== "https:" && !(source.protocol === "http:" && ["localhost", "127.0.0.1"].includes(source.hostname))) throw new Error("网络冲突检查需要正式 HTTPS 地址（本机验收除外）");
-    if (!Array.isArray(permissions.networkRanges) || !permissions.networkRanges.length) throw new Error("地址池尚未确认，不能生成受保护的接入命令，请重新打开添加设备");
-    const ranges = permissions.networkRanges.map((value) => JSON.stringify(normalizeAllocationRange(value, []))).join(" ");
-    // curl 失败不能变成空脚本成功；检查失败会阻止后续安装/接入，不静默改本机网络。
-    preflight = `xunara_check=$(curl -fsSL --max-time 30 ${JSON.stringify(source.href)}) &&\nprintf '%s\\n' "$xunara_check" | python3 - ${ranges} &&\n`;
+    preflight = networkCheckCommand(permissions.networkRanges, permissions.checkScriptURL) + " &&\n";
   }
   if (options.platform !== "linux" || !options.installClient) return preflight + login;
   // 保留官方简洁安装管道，但必须传播 curl 失败，防止安装失败后继续带密钥接入。

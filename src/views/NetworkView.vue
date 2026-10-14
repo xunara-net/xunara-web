@@ -11,6 +11,8 @@ import type { Organization } from "../api/types";
 import { session } from "../store";
 import { emptyResource, refreshResource } from "../utils/resources";
 import PageHeader from "../components/PageHeader.vue";
+import { networkCheckCommand } from "../utils/device-install";
+import { copyText } from "../utils/clipboard";
 const organization = reactive(emptyResource<Organization>());
 const loading = ref(false);
 const allocation = reactive(emptyResource<AddressConfiguration>());
@@ -21,6 +23,22 @@ const preview = ref<AddressPreview | null>(null);
 const baseline = ref<AddressConfiguration | null>(null);
 const editorStatus = computed(() => allocationEditStatus(allocation.data, session.state.user?.role, allocation.error));
 const canWrite = computed(() => editorStatus.value.allowed);
+const conflictCheck = computed(() => {
+  if (loading.value || allocation.error || !allocation.data || allocation.data.pending) {
+    return { text: "", error: "当前地址池尚未确认，请刷新并等待网段变更生效后再生成检查命令。" };
+  }
+  try {
+    return { text: networkCheckCommand([allocation.data.ipv4_cidr, ...(allocation.data.extra_ipv4_cidrs ?? [])], window.location.origin + "/network-check.py"), error: "" };
+  } catch (err) { return { text: "", error: errorMessage(err) }; }
+});
+async function copyConflictCheck() {
+  const command = conflictCheck.value.text;
+  if (!command || busy.value || loading.value) return;
+  try {
+    await copyText(command);
+    if (command === conflictCheck.value.text) session.toast("success", "只读网络检查命令已复制");
+  } catch (err) { session.toast("error", errorMessage(err)); }
+}
 watch(draft, () => { preview.value = null; }, { flush: "sync" });
 watch(extraDraft, () => { preview.value = null; }, { flush: "sync" });
 function openEdit() {
@@ -88,6 +106,23 @@ async function load() {
       <router-link to="/permissions">配置跨网段访问权限 →</router-link>
     </div>
   </section>
+  <details class="card network-conflict-help">
+    <summary class="card-body"><strong>网段冲突检查与处理</strong><span class="muted small-text"> · 按需展开</span></summary>
+    <div class="card-body stack">
+      <p class="muted">浏览器不能替远程设备检查局域网。请在需要接入的 Linux 设备上执行下面的只读检查；需要 Python 3、curl 和支持 JSON 的 iproute2。不安装、不登录，不修改 DNS、路由或设备 IP，也不上传检查结果。</p>
+      <pre v-if="conflictCheck.text" class="network-check-command mono" aria-label="只读网络冲突检查命令">{{ conflictCheck.text }}</pre>
+      <p v-else class="alert warning" role="status">{{ conflictCheck.error }}</p>
+      <div><button class="btn" :disabled="!conflictCheck.text || busy || loading" @click="copyConflictCheck">复制只读检查命令</button></div>
+      <p class="help">使用当前已应用的默认池及附加池，配置改变后请重新复制。还会检查固定 Quad100；不能覆盖旧池外 IP、未给定的子网路由、外部服务或以后变化的网络。检查通过不代表所有连接一定可用。</p>
+      <div class="alert warning"><strong>局域网或软件源已经失联？</strong><p>先准备本地控制台或备用连接，再在受影响设备执行 <code>sudo tailscale down</code>，确认原有 DNS 和路由恢复。断开此设备可能中断通过它进行的远程管理；本页面不会自动执行。</p></div>
+      <ol class="stack network-conflict-steps">
+        <li><strong>设备地址池与局域网重叠</strong><p>修改默认网段，选一个不与所有接入设备的局域网、其他 VPN 和子网路由重叠的范围。旧设备 IP 不会自动改变，切换默认池时原池也会保留为附加池；先逐台修改旧设备 IPv4，核对 ACL、应用与 DNS，再移除不用的冲突池。</p><router-link to="/devices">前往设备详情修改 IPv4 →</router-link></li>
+        <li><strong>接收的子网路由与局域网重叠</strong><p>优先重新规划宣告网段；不需要访问远端子网时，可在客户端停止接收子网路由。这与设备 IP 或 Quad100 冲突不同，不要仅靠换设备默认池处理。</p><router-link to="/routes">检查子网路由与出口配置 →</router-link></li>
+        <li><strong>与 100.100.100.100 / fd7a:115c:a1e0::53 冲突</strong><p>这是官方客户端固定服务地址 Quad100，不是你的默认设备网段。换地址池或关闭 MagicDNS 不能保证解除冲突；应调整本地服务地址，或由管理员另行验证隔离网络 / userspace 方案，不能在这里伪造一个替代 DNS IP。</p></li>
+      </ol>
+      <p class="help">Windows、macOS 和手机没有此 Linux 自动检查；请先核对本地地址、已接收路由与 VPN 配置。页面提供处理指导，不自动绕过冲突或修改局域网。</p>
+    </div>
+  </details>
   <section class="card"><div class="card-head"><h2>网络基本信息</h2></div><div class="card-body"><div class="kv"><div class="k">网络名称</div><div class="v">{{ organization.data?.name || session.state.tenant?.organizationName || '—' }}</div><div class="k">网络编号</div><div class="v mono">{{ organization.data?.id || session.state.tenant?.id || '—' }}</div><div class="k">当前 IPv4 网段</div><div class="v mono">{{ allocation.data?.ipv4_cidr || (allocation.error ? '读取失败' : '正在读取…') }}</div><div class="k">IPv6 网段</div><div class="v mono">{{ allocation.data?.ipv6_cidr || '—' }}<span class="muted small-text"> · 系统分配</span></div><div class="k">网段管理</div><div class="v">{{ !allocation.data ? '网段权限暂未确认' : allocation.data.can_edit ? (canManageNetwork(session.state.user?.role) ? '套餐支持自定义设备分配网段' : '仅网络管理员可以修改') : '系统自动分配，当前套餐不允许自定义网段' }}</div></div><div v-if="allocation.data?.pending" class="alert warning" role="status">期望网段 {{ allocation.data.desired_ipv4_cidr }} 尚未应用，设备仍从当前网段分配。请刷新检查，勿重复提交。</div><div v-if="allocation.data?.devices_outside_range" class="alert info">{{ allocation.data.devices_outside_range }} 台已有设备保留旧网段 IP。可在设备详情逐台显式修改，不会自动断开全部设备。</div></div></section>
   <div id="network-edit-status" class="alert" :class="editorStatus.status === 'error' ? 'warning' : 'info'" role="status"><span>{{ editorStatus.reason }}</span> <router-link v-if="editorStatus.status === 'plan'" to="/plan">查看套餐权限 →</router-link><router-link v-if="allocation.data?.devices_outside_range" to="/devices">前往设备详情逐台修改 IPv4 →</router-link></div>
   <div class="alert info">可自定义合法 IPv4 网段，例如 192.168.50.0/24、10.42.0.0/16 或 100.101.50.0/24，不再限制为 /16～/28。系统仍检查保留地址与租户冲突。接入已有家庭或办公网络也可使用子网路由。<router-link to="/routes">配置子网路由 →</router-link></div>
@@ -107,3 +142,10 @@ async function load() {
     <template #footer><button class="btn" :disabled="busy" @click="editing = false">取消</button></template>
   </ModalDialog>
 </template>
+
+<style scoped>
+.network-conflict-help summary { cursor: pointer; }
+.network-conflict-help[open] summary { border-bottom: 1px solid var(--border); }
+.network-check-command { margin: 0; padding: 12px; background: var(--surface-2); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
+.network-conflict-steps { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8; }
+</style>
