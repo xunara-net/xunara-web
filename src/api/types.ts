@@ -8,6 +8,7 @@ export interface User {
   updatedAt?: string;
   disabled?: boolean;
   disabledAt?: string;
+  passwordChangeRequired?: boolean;
 }
 
 export interface SessionInfo {
@@ -93,6 +94,7 @@ export interface UserPayload {
   role: string;
   created_at: string;
   updated_at: string;
+  password_change_required?: boolean;
 }
 
 export interface AccountInfo {

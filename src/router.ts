@@ -20,7 +20,8 @@ const routes = [
     meta: { public: true, bare: true },
   },
   { path: "/dashboard", name: "dashboard", component: () => import("./views/DashboardView.vue") },
-  { path: "/reset-password", name: "reset-password", component: () => import("./views/ResetPasswordView.vue"), meta: { public: true, bare: true } },
+  { path: "/reset-password", name: "reset-password", component: () => import("./views/PasswordRecoveryView.vue"), meta: { public: true, bare: true } },
+  { path: "/change-password", name: "change-password", component: () => import("./views/ChangePasswordView.vue"), meta: { bare: true } },
   { path: "/devices", name: "devices", component: () => import("./views/DevicesView.vue") },
   {
     path: "/devices/:id",
@@ -57,6 +58,9 @@ router.beforeEach(async (to) => {
   if (!session.state.booted) await session.load();
   // 认证故障由 App 的重试页接管，保留原目标地址，不误重定向到登录页。
   if (session.state.bootError) return true;
+  if (session.state.authenticated && session.state.user?.passwordChangeRequired && to.name !== "change-password") {
+    return { name: "change-password" };
+  }
   if (to.meta.public) return true;
   if (!session.state.authenticated) {
     return { name: "login", query: { return_to: to.fullPath } };

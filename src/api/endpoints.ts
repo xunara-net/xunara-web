@@ -200,10 +200,15 @@ export const updateAccount = async (body: ProfileUpdate, csrfToken: string) =>
     method: "PATCH", body, headers: { "X-CSRF-Token": csrfToken },
   }));
 
-export const changePassword = (body: PasswordChange, csrfToken: string) =>
-  api<PasswordChangeResult>("/api/v1/account/password", {
+export const changePassword = async (body: PasswordChange, csrfToken: string) => {
+  const payload = await api<PasswordChangeResult>("/api/v1/account/password", {
     method: "POST", body, headers: { "X-CSRF-Token": csrfToken },
   });
+  if (!payload || payload.changed !== true || !Number.isSafeInteger(payload.revoked_sessions) || payload.revoked_sessions < 1) {
+    throw new Error("改密响应格式不正确，结果未知；请尝试新密码登录，不要连续重复提交");
+  }
+  return payload;
+};
 
 export const getAccountSessions = async () =>
   toAccountSessions(await api<AccountSessionsPayload>("/api/v1/account/sessions"));

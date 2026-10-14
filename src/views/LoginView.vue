@@ -114,6 +114,10 @@ async function passkeyLogin() {
 }
 
 async function afterLogin() {
+  if (session.state.user?.passwordChangeRequired) {
+    await router.replace({ name: "change-password" });
+    return;
+  }
   const target = loginDestination(route.query.return_to);
   if (target.backend) {
     window.location.assign(consolePath(target.path));
@@ -192,7 +196,7 @@ async function afterLogin() {
       </template>
 
       <div class="auth-footer">
-        <router-link v-if="info?.password_reset === true" to="/reset-password">忘记密码</router-link>
+        <router-link v-if="info?.local_login" to="/reset-password">忘记密码</router-link>
         <router-link v-if="registration === 'invite'" to="/register">使用邀请码注册</router-link>
         <router-link v-else-if="registration === 'open'" to="/register">免费创建账户</router-link>
         <router-link v-if="info?.member_invitations && registration !== 'invite'" to="/register?mode=invite">使用邀请码加入当前网络</router-link>

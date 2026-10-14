@@ -30,6 +30,9 @@ export function toAccountSessions(payload: AccountSessionsPayload): AccountSessi
 }
 
 export function toUser(payload: UserPayload): User {
+  if (payload.password_change_required !== undefined && typeof payload.password_change_required !== "boolean") {
+    throw new Error("账号改密状态响应格式无效，请刷新核对");
+  }
   return {
     id: payload.id,
     loginName: payload.login_name,
@@ -38,6 +41,7 @@ export function toUser(payload: UserPayload): User {
     role: payload.role,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
+    passwordChangeRequired: payload.password_change_required,
   };
 }
 
