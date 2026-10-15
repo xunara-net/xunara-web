@@ -51,6 +51,24 @@ npm run test:network # Shell 只读网络冲突检查器与失败停止回归
 npm run build      # 产物在 dist/，由 xunara-deploy 的 nginx 或控制面静态托管
 ```
 
+类型检查同时拒绝未使用的局部声明、导入和参数；只在本文件使用的类型不因导出
+扫描告警而删除。跨仓库浏览器测试模块仍由 Admin 验收入口引用。
+
+独立浏览器回归的前置条件是 Node 22、OpenSSL、Chromium、`playwright-core`，以及
+已构建的本仓库 `dist/` 和服务端二进制；在本仓库目录执行：
+
+```sh
+export SMOKE_XUNARAD=/absolute/path/to/xunarad
+export PLAYWRIGHT_MODULE=/absolute/path/to/playwright-core
+export CHROMIUM_BINARY=/absolute/path/to/chromium
+npm run test:shared-console
+SMOKE_NATIVE_GATEWAY=1 npm run test:shared-console
+npm run test:sharing
+```
+
+这些脚本使用隔离的本地租户和测试证书，不连接生产环境；分别检查统一登录、
+普通 / 共享原生入口、设备分享和移动布局，不把测试夹具当成正式数据面验收。
+
 Linux 接入保护与「我的网络」只读诊断共用 `/network-check.sh`，通过
 `sh -s -- <CIDR...>` 执行，不需要 Python 或 iproute2 JSON 支持。
 设备需有 `sh`、`awk`、`ip`（iproute2）、`mktemp`、`timeout` 及常见文件工具；
