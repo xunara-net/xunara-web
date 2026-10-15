@@ -5,7 +5,7 @@ import * as ep from "../api/endpoints";
 import { errorMessage } from "../api/client";
 import { session } from "../store";
 import { getPasskey, passkeyAvailability, passkeyErrorMessage } from "../utils/passkey";
-import { legacyProviderLoginURL, loginDestination, providerLoginURL } from "../utils/auth";
+import { accountLoginDestination, legacyProviderLoginURL, loginDestination, providerLoginURL } from "../utils/auth";
 import type { ProvidersPayload } from "../api/types";
 import { consolePath } from "../utils/console";
 
@@ -66,8 +66,7 @@ async function submit() {
     if (accountLoginEndpoint.value) {
       const target = await ep.loginAccount(accountLoginEndpoint.value, login.value, password.value);
       password.value = "";
-      const destination = target.passwordChangeRequired ? "/change-password" : loginDestination(route.query.return_to).path;
-      window.location.assign(`${target.path}${destination}`);
+      window.location.assign(target.passwordChangeRequired ? `${target.path}/change-password` : accountLoginDestination(target.path, route.query.return_to));
       return;
     }
     await session.login(login.value, password.value);
@@ -80,18 +79,26 @@ async function submit() {
 }
 
 async function passkeyLogin() {
-  if (loading.value || loadError.value || busy.value || !passkeys.value || !availability.supported || setupRequired.value) return;
+  if (loading.value || loadError.value || busy.value || !passkeys.value || !availability.supported || setupRequired.value ||
+      accountLoginEndpoint.value && !login.value.trim()) return;
+  const initiatingLogin = login.value.trim();
   const controller = new AbortController();
   operation = controller;
   error.value = "";
   busy.value = "passkey";
   try {
-    const begin = await ep.beginPasskeyLogin();
+    const begin = await (accountLoginEndpoint.value ? ep.beginAccountPasskeyLogin(initiatingLogin) : ep.beginPasskeyLogin());
     controller.signal.throwIfAborted();
     const credential = await getPasskey(begin.options.publicKey, controller.signal);
     controller.signal.throwIfAborted();
-    await session.loginWithPasskey(credential);
-    await afterLogin();
+    if (accountLoginEndpoint.value) {
+      const target = await ep.finishAccountPasskeyLogin(initiatingLogin, credential);
+      controller.signal.throwIfAborted();
+      window.location.assign(target.passwordChangeRequired ? `${target.path}/change-password` : accountLoginDestination(target.path, route.query.return_to));
+    } else {
+      await session.loginWithPasskey(credential);
+      await afterLogin();
+    }
   } catch (err) {
     error.value = passkeyErrorMessage(err);
   } finally {
@@ -148,9 +155,12 @@ async function afterLogin() {
         </button>
       </form>
 
+      <div v-if="!localLogin && accountLoginEndpoint && passkeys && !loading && !loadError" class="field" style="margin-top: 20px">
+        <label for="passkey-account-login">登录名</label><input id="passkey-account-login" v-model="login" class="input" autocomplete="username" placeholder="请输入注册时的登录名" />
+      </div>
       <div v-if="passkeys" style="margin-top: 16px">
-        <button class="btn" style="width: 100%" :disabled="!!busy || setupRequired || !availability.supported" @click="passkeyLogin">{{ busy === 'passkey' ? '等待设备验证…' : '使用通行密钥登录' }}</button>
-        <p class="hint" style="margin-top: 8px">{{ availability.supported ? '使用已绑定的指纹、面容、设备 PIN 或安全密钥。' : availability.reason }}</p>
+        <button class="btn" style="width: 100%" :disabled="!!busy || setupRequired || !availability.supported || accountLoginEndpoint !== '' && !login.trim()" @click="passkeyLogin">{{ busy === 'passkey' ? '等待设备验证…' : '使用通行密钥登录' }}</button>
+        <p class="hint" style="margin-top: 8px">{{ availability.supported ? (accountLoginEndpoint ? '先填写用户名，再使用该账户已绑定的指纹、面容、设备 PIN 或安全密钥。' : '使用已绑定的指纹、面容、设备 PIN 或安全密钥。') : availability.reason }}</p>
       </div>
 
       <template v-if="providers.length">

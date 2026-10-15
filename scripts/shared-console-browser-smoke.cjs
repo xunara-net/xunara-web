@@ -40,7 +40,7 @@ function backend(endpoint, method = 'GET', body, extraHeaders = {}) {
 }
 function serve(request, response) {
   const pathname = new URL(request.url, origin).pathname;
-  if (pathname.startsWith('/api/') || pathname === '/health' || /^\/t\/[^/]+\/(?:api\/|oidc\/|oauth2\/)/.test(pathname)) {
+  if (pathname.startsWith('/api/') || pathname === '/health' || /^\/t\/[^/]+\/(?:api\/|oidc\/|oauth2\/|login\/?$)/.test(pathname)) {
     const upstream = http.request(control + request.url, { method: request.method, headers: request.headers }, (result) => {
       response.writeHead(result.statusCode, result.headers); result.pipe(response);
     });
@@ -60,7 +60,7 @@ async function snapshot(page, prefix = '') {
 async function logout(page) {
   await page.locator('.topbar .btn').last().click();
   await page.getByRole('button', { name: '退出登录', exact: true }).click();
-  await page.waitForURL((url) => url.pathname.endsWith('/login'));
+  await page.waitForURL((url) => url.pathname === '/login');
 }
 async function main() {
   assert.ok(process.env.SMOKE_XUNARAD && fs.existsSync(process.env.SMOKE_XUNARAD));
@@ -208,6 +208,42 @@ async function main() {
   await duplicateContext.close();
   mark('portal-login-identifies-account-after-signout');
   await logout(page);
+  mark('legacy-existing-deleted-and-unknown-tenant-bookmarks-use-common-login');
+  for (const tenant of ['shared-owner', 'deleted', 'gggg']) {
+    await page.goto(origin + '/t/' + tenant + '/login');
+    assert.equal(new URL(page.url()).pathname, '/login');
+    await page.getByLabel('登录名', { exact: true }).waitFor();
+  }
+  mark('another-account-signs-in-from-the-old-workspace-bookmark-without-scope-selection');
+  const otherContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const otherPage = await otherContext.newPage();
+  otherPage.on('pageerror', (error) => errors.push(error.name));
+  await otherPage.goto(origin + '/register');
+  await otherPage.getByLabel('登录名', { exact: true }).fill('shared-other');
+  await otherPage.getByLabel('密码', { exact: true }).fill(password);
+  await otherPage.getByRole('button', { name: '免费创建账户', exact: true }).click();
+  await otherPage.waitForURL(origin + '/t/shared-other/dashboard');
+  await logout(otherPage);
+  await otherPage.goto(origin + '/t/shared-owner/login?return_to=' + encodeURIComponent('/t/shared-owner/network'));
+  assert.equal(new URL(otherPage.url()).pathname, '/login');
+  await otherPage.getByLabel('登录名', { exact: true }).fill('shared-other');
+  await otherPage.getByLabel('密码', { exact: true }).fill(password);
+  await otherPage.getByRole('button', { name: '登录', exact: true }).click();
+  await otherPage.waitForURL(origin + '/t/shared-other/network');
+  assert.equal((await snapshot(otherPage, '/t/shared-other')).tenant.organization_id, 'shared-other');
+  assert.equal((await snapshot(otherPage, '/t/shared-owner')).authenticated, false);
+  assert.equal(await otherPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+  mark('expired-workspace-session-does-not-pin-the-next-account');
+  await logout(otherPage);
+  await otherPage.goto(origin + '/t/shared-other/network');
+  await otherPage.waitForURL((url) => url.pathname === '/login');
+  await otherPage.getByLabel('登录名', { exact: true }).fill('shared-owner');
+  await otherPage.getByLabel('密码', { exact: true }).fill(password);
+  await otherPage.getByRole('button', { name: '登录', exact: true }).click();
+  await otherPage.waitForURL(origin + '/t/shared-owner/network');
+  assert.equal((await snapshot(otherPage, '/t/shared-owner')).tenant.organization_id, 'shared-owner');
+  await logout(otherPage);
+  await otherContext.close();
   mark('workspace-cookie-revoked-before-portal-relogin');
   await page.goto(origin + '/login');
   assert.equal(await page.getByLabel('网络标识', { exact: true }).count(), 0);
@@ -232,6 +268,8 @@ async function main() {
   await page.getByRole('button', { name: '添加通行密钥', exact: true }).click();
   await page.getByText('通行密钥已添加，下次可使用设备锁屏验证登录。', { exact: true }).waitFor();
   await logout(page);
+  assert.equal(await page.getByRole('button', { name: '使用通行密钥登录', exact: true }).isDisabled(), true);
+  await page.getByLabel('登录名', { exact: true }).fill('shared-owner');
   await page.getByRole('button', { name: '使用通行密钥登录', exact: true }).click();
   await page.waitForURL(origin + '/t/shared-owner/dashboard');
   assert.equal((await snapshot(page, '/t/shared-owner')).session.auth_method, 'passkey');

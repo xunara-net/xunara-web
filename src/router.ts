@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { session } from "./store";
 import { consoleBase } from "./utils/console";
+import { accountLoginPath } from "./utils/auth";
 
 // Routes follow the specification's console map (spec section 93): account,
 // tailnet, billing and settings each own a top-level group.
@@ -56,14 +57,24 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  // 退出、改密和成员邀请页的登录链接共用这里，不再生成 /t/<org>/login。
+  if (to.name === "login" && consoleBase()) {
+    window.location.replace(accountLoginPath(to.query));
+    return false;
+  }
   if (!session.state.booted) await session.load();
   // 认证故障由 App 的重试页接管，保留原目标地址，不误重定向到登录页。
   if (session.state.bootError) return true;
+  if (to.name === "login") return true;
   if (session.state.authenticated && session.state.user?.passwordChangeRequired && to.name !== "change-password") {
     return { name: "change-password" };
   }
   if (to.meta.public) return true;
   if (!session.state.authenticated) {
+    if (consoleBase()) {
+      window.location.replace(accountLoginPath(to.fullPath === "/dashboard" ? {} : { return_to: to.fullPath }));
+      return false;
+    }
     return { name: "login", query: to.fullPath === "/dashboard" ? {} : { return_to: to.fullPath } };
   }
   return true;

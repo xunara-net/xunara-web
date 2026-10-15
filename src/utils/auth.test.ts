@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { legacyProviderLoginURL, loginDestination, providerLoginURL } from "./auth";
+import { accountLoginDestination, accountLoginPath, canonicalLoginPath, legacyProviderLoginURL, loginDestination, providerLoginURL } from "./auth";
 
 describe("登录回跳", () => {
   it("站内产品页面使用 SPA 导航", () => {
@@ -22,6 +22,35 @@ describe("登录回跳", () => {
     for (const path of [undefined, ["/security"], "https://attacker.test/", "//attacker.test/", "/\\attacker.test", "/security\n", "javascript:alert(1)"]) {
       expect(loginDestination(path)).toEqual({ path: "/dashboard", backend: false });
     }
+  });
+});
+
+describe("统一账户登录入口", () => {
+  it("旧租户及已删除租户书签在读取会话之前回到根登录", () => {
+    for (const path of ["/t/alice/login", "/t/deleted/login", "/t/gggg/login/"]) expect(canonicalLoginPath(path, "")).toBe("/login");
+    for (const path of ["/login", "/t/alice/devices", "/t/alice/api/v1/auth/login", "/t/alice/register", "/t/../login"]) {
+      expect(canonicalLoginPath(path, "")).toBeNull();
+    }
+  });
+  it("只保留非敏感提示，不复制旧 URL 的任意参数或重复字段", () => {
+    expect(accountLoginPath({ signed_out: "all", password_changed: "1", token: "private", provider: "unconfirmed" })).toBe("/login?signed_out=all&password_changed=1");
+    expect(canonicalLoginPath("/t/alice/login", "?return_to=%2Fnetwork&signed_out=current&token=private")).toBe("/login?return_to=%2Fnetwork&signed_out=current");
+    expect(canonicalLoginPath("/t/alice/login", "?return_to=%2Fnetwork&return_to=%2Fdevices&signed_out=other")).toBe("/login");
+    for (const target of ["//foreign.test", "https://foreign.test", "/login", "/t/alice/login", "/\\foreign.test", "/network\u007f"]) {
+      expect(accountLoginPath({ return_to: target })).toBe("/login");
+    }
+  });
+  it("旧网络的普通页面只回到本次验证账户自己的控制台", () => {
+    expect(accountLoginDestination("/t/bob", "/t/alice/network?tab=allocation")).toBe("/t/bob/network?tab=allocation");
+    expect(accountLoginDestination("/t/bob", "/devices")).toBe("/t/bob/devices");
+    expect(accountLoginDestination("", undefined)).toBe("/dashboard");
+    expect(accountLoginDestination("/t/bob", "//foreign.test")).toBe("/t/bob/dashboard");
+  });
+  it("后端设备与 SSH 授权不能借旧回跳跳入另一网络", () => {
+    expect(accountLoginDestination("/t/alice", "/t/alice/register/approval")).toBe("/t/alice/register/approval");
+    expect(loginDestination("/t/alice/register/approval").backend).toBe(true);
+    expect(accountLoginDestination("/t/bob", "/t/alice/register/approval")).toBe("/t/bob/dashboard");
+    expect(accountLoginDestination("/t/bob", "/t/alice/ssh/check/approval")).toBe("/t/bob/dashboard");
   });
 });
 

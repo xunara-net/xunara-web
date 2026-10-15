@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loginAccount, signupTenant } from "./endpoints";
+import { beginAccountPasskeyLogin, finishAccountPasskeyLogin, loginAccount, signupTenant } from "./endpoints";
 import { api } from "./client";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -11,6 +11,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("ordinary account signup and login", () => {
+  it("统一通行密钥按用户名发起，并校验服务端确认的账户网络", async () => {
+    const credential = { id: "credential", rawId: "AQI", type: "public-key" as const, authenticatorAttachment: null, clientExtensionResults: {}, response: { clientDataJSON: "AQI", signature: "AQI" } };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ options: { publicKey: { challenge: "AQI" } } })));
+    await beginAccountPasskeyLogin("alice");
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ console_path: "/t/alice", session: { authenticated: true, tenant: { organization_id: "alice" } } })));
+    expect(await finishAccountPasskeyLogin("alice", credential)).toEqual({ path: "/t/alice", passwordChangeRequired: false });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://app.example.test/api/self-service/v1/passkey/begin");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("https://app.example.test/api/self-service/v1/passkey/finish");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ login: "alice", credential });
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).search).toBe("");
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ console_path: "/t/alice", session: { authenticated: true, tenant: { organization_id: "bob" } } })));
+    await expect(finishAccountPasskeyLogin("alice", credential)).rejects.toThrow("API_RESPONSE_INVALID");
+  });
   it("routes by authenticated account without asking for a network identifier", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ console_path: "/t/alice", session: { authenticated: true, tenant: { organization_id: "alice" } } })));
     expect(await loginAccount("/api/self-service/v1/login", "owner", "private-password")).toEqual({ path: "/t/alice", passwordChangeRequired: false });

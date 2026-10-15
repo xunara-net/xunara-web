@@ -101,6 +101,10 @@ export async function loginAccount(endpoint: string, login: string, password: st
   if (endpoint !== "/api/self-service/v1/login") throw new ApiError(502, "API_RESPONSE_INVALID: invalid login endpoint");
   const payload = await api<{ console_path: string; session: SnapshotPayload }>(endpoint,
     { method: "POST", body: { login, password }, redirect: "error" });
+  return confirmedAccountLogin(payload);
+}
+
+function confirmedAccountLogin(payload: { console_path: string; session: SnapshotPayload }): { path: string; passwordChangeRequired: boolean } {
   const path = payload?.console_path;
   if (typeof path !== "string" || (path !== "" && !/^\/t\/[a-z0-9][a-z0-9-]{0,31}$/.test(path)) ||
       payload.session?.authenticated !== true ||
@@ -108,6 +112,14 @@ export async function loginAccount(endpoint: string, login: string, password: st
     throw new ApiError(502, "API_RESPONSE_INVALID: account login was not confirmed");
   }
   return { path, passwordChangeRequired: payload.session.user?.password_change_required === true };
+}
+
+export const beginAccountPasskeyLogin = (login: string) =>
+  api<{ options: { publicKey: PasskeyRequestOptionsJSON } }>("/api/self-service/v1/passkey/begin", { method: "POST", body: { login } });
+
+export async function finishAccountPasskeyLogin(login: string, credential: PasskeyCredentialJSON): Promise<{ path: string; passwordChangeRequired: boolean }> {
+  return confirmedAccountLogin(await api<{ console_path: string; session: SnapshotPayload }>("/api/self-service/v1/passkey/finish",
+    { method: "POST", body: { login, credential }, redirect: "error" }));
 }
 
 export const login = async (login: string, password: string) =>
