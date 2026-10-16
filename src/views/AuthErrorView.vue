@@ -11,7 +11,10 @@ const reasons: Record<string, [string, string]> = {
   AUTH_RATE_LIMITED: ["操作过于频繁", "请稍后再试，不要连续重复提交。"],
   AUTH_UNAVAILABLE: ["登录服务暂不可用", "现有登录不会因此被退出。请稍后重试或联系管理员检查登录配置。"],
 };
-const copy = computed(() => reasons[String(route.query.reason)] ?? ["未能完成登录", "未能确认本次登录，请返回登录页重新开始。"]);
+const copy = computed(() => {
+  const reason = typeof route.query.reason === "string" ? route.query.reason : "";
+  return Object.hasOwn(reasons, reason) ? reasons[reason]! : ["未能完成登录", "未能确认本次登录，请返回登录页重新开始。"];
+});
 </script>
 
 <template>

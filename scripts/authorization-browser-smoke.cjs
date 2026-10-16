@@ -187,6 +187,10 @@ async function main() {
   await alice.goto(origin + '/auth/error?reason=AUTH_EXPIRED&error_description=untrusted-provider-message');
   await alice.getByRole('heading', { name: '登录链接已失效', exact: true }).waitFor();
   assert.equal((await alice.locator('body').innerText()).includes('untrusted-provider-message'), false);
+  for (const reason of ['constructor', '__proto__', 'toString', 'unknown']) {
+    await alice.goto(origin + '/auth/error?reason=' + reason);
+    await alice.getByRole('heading', { name: '未能完成登录', exact: true }).waitFor();
+  }
   mark('ssh-check-details-and-human-decision-use-the-modern-ui');
   const sshID = crypto.randomBytes(16).toString('hex');
   database.prepare('INSERT INTO ssh_check_sessions (id,src_node_id,dst_node_id,local_user,verdict,created_at,expires_at) VALUES (?,?,?,?,?,?,?)')
