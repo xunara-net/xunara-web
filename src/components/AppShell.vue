@@ -41,7 +41,7 @@ watch(() => route.fullPath, async () => {
   drawerOpen.value = false;
   menuOpen.value = false;
   await nextTick();
-  window.scrollTo({ top: 0, behavior: "instant" });
+  if (route.name !== "security" || route.hash !== "#ssh-check") window.scrollTo({ top: 0, behavior: "instant" });
   content.value?.focus({ preventScroll: true });
 });
 

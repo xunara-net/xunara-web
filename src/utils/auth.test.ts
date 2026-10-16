@@ -7,10 +7,20 @@ describe("登录回跳", () => {
     expect(loginDestination("/register").backend).toBe(false);
   });
 
-  it("设备授权、SSH 检查和旧书签使用完整浏览器导航", () => {
-    for (const path of ["/register/authorization-id", "/ssh/check/check-id", "/console/passkeys"]) {
+  it("设备授权和 SSH 检查仍使用完整浏览器导航", () => {
+    for (const path of ["/register/authorization-id", "/ssh/check/check-id"]) {
       expect(loginDestination(path)).toEqual({ path, backend: true });
     }
+  });
+
+  it("旧中心书签改为新页面，不恢复旧 HTML，也不复制旧 query", () => {
+    expect(loginDestination("/console/ssh-check?state=pending&token=discarded")).toEqual({ path: "/security#ssh-check", backend: false });
+    expect(loginDestination("/console/passkeys")).toEqual({ path: "/security", backend: false });
+    expect(loginDestination("/console/machines")).toEqual({ path: "/devices", backend: false });
+    expect(loginDestination("/console")).toEqual({ path: "/dashboard", backend: false });
+    expect(loginDestination("/console/unknown")).toEqual({ path: "/dashboard", backend: false });
+    expect(loginDestination("/console/constructor")).toEqual({ path: "/dashboard", backend: false });
+    expect(accountLoginDestination("/t/bob", "/t/alice/console/ssh-check")).toBe("/t/bob/security#ssh-check");
   });
 
   it("查询字符串不能伪装成后端路径", () => {

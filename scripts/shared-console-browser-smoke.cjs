@@ -40,7 +40,7 @@ function backend(endpoint, method = 'GET', body, extraHeaders = {}) {
 }
 function serve(request, response) {
   const pathname = new URL(request.url, origin).pathname;
-  if (pathname.startsWith('/api/') || pathname === '/health' || /^\/t\/[^/]+\/(?:api\/|oidc\/|oauth2\/|login\/?$)/.test(pathname)) {
+  if (pathname.startsWith('/api/') || pathname === '/health' || /^\/console(?:\/|$)/.test(pathname) || pathname === '/ui/prefs' || /^\/t\/[^/]+\/(?:api\/|oidc\/|oauth2\/|console(?:\/|$)|ui\/prefs$|login\/?$)/.test(pathname)) {
     const upstream = http.request(control + request.url, { method: request.method, headers: request.headers }, (result) => {
       response.writeHead(result.statusCode, result.headers); result.pipe(response);
     });
@@ -108,6 +108,60 @@ async function main() {
   assert.equal((await snapshot(page)).authenticated, false);
   const cookies = await context.cookies();
   assert.ok(cookies.some((cookie) => cookie.name === 'xunara_session_tenant_shared-owner' && cookie.path === '/t/shared-owner/' && cookie.httpOnly && cookie.secure));
+  mark('retired-console-bookmarks-reach-new-security-without-html-fallback');
+  const sshPattern = '**/t/shared-owner/api/v2/ssh-check/sessions*';
+  const actualHistory = page.waitForResponse((response) => response.url().includes('/api/v2/ssh-check/sessions'));
+  await page.goto(origin + '/t/shared-owner/console/ssh-check?state=pending&token=discarded-fixture');
+  await page.waitForURL(origin + '/t/shared-owner/security#ssh-check');
+  assert.equal((await actualHistory).status(), 200);
+  const sshPanel = page.locator('#ssh-check');
+  await sshPanel.getByText('此页没有符合条件的审批记录；已清理的短期记录不会补录。', { exact: true }).waitFor();
+  const sshHeading = await sshPanel.locator('summary').boundingBox();
+  assert.ok(sshHeading && sshHeading.y >= 0 && sshHeading.y < 844);
+  assert.equal(await page.getByText('Xunara console', { exact: false }).count(), 0);
+  assert.equal(await page.evaluate(async () => (await fetch('/t/shared-owner/console/machines/old/delete', { method: 'POST', redirect: 'manual' })).status), 410);
+  mark('ssh-history-ui-fixture-status-pagination-errors-and-mobile');
+  // 记录内容只在隔离浏览器注入；真实 API、租户路由及空记录已经单独验证。
+  const historyRecord = { id: 'fixture-check', state: 'pending', verdict: 'pending', src: { nodeId: 1, hostname: '来源设备-很长的中文设备名称-SSH-检查' },
+    dst: { nodeId: 2 }, localUser: 'root', createdAt: '2026-10-16T02:00:00Z', expiresAt: '2026-10-16T02:15:00Z' };
+  let historyFailure = false;
+  await page.route(sshPattern, (route) => {
+    assert.equal(route.request().method(), 'GET');
+    if (historyFailure) return route.fulfill({ status: 503, contentType: 'application/json', json: { error: '隔离验收读取失败' } });
+    const query = new URL(route.request().url()).searchParams;
+    const consumed = query.has('cursor') || query.get('state') === 'consumed';
+    return route.fulfill({ status: 200, contentType: 'application/json', json: {
+      items: [{ ...historyRecord, ...(consumed ? { state: 'consumed', verdict: 'reject', decidedAt: historyRecord.createdAt, decidedBy: { userId: 3 }, consumedAt: historyRecord.expiresAt } : {}) }],
+      nextCursor: consumed ? '' : 'fixture-next-page',
+    } });
+  });
+  await sshPanel.getByRole('button', { name: '刷新记录', exact: true }).click();
+  await sshPanel.getByText('待审批', { exact: true }).last().waitFor();
+  await sshPanel.getByRole('button', { name: '下一页', exact: true }).click();
+  await sshPanel.getByText('第 2 页', { exact: true }).waitFor();
+  await sshPanel.getByText('拒绝 ·', { exact: false }).waitFor();
+  await sshPanel.getByLabel('审批状态', { exact: true }).selectOption('consumed');
+  await sshPanel.getByText('第 1 页', { exact: true }).waitFor();
+  await sshPanel.getByText('账号 #3', { exact: true }).waitFor();
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+  }
+  historyFailure = true;
+  await sshPanel.getByRole('button', { name: '刷新记录', exact: true }).click();
+  await sshPanel.getByRole('alert').getByText('隔离验收读取失败', { exact: false }).waitFor();
+  assert.equal(await sshPanel.getByText('此页没有符合条件的审批记录；已清理的短期记录不会补录。', { exact: true }).count(), 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await sshPanel.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(state, 'ssh-history-mobile.png') });
+  await page.unroute(sshPattern);
+  const anonymous = await browser.newContext();
+  const oldBookmark = await anonymous.newPage();
+  await oldBookmark.goto(origin + '/console/ssh-check');
+  assert.equal(new URL(oldBookmark.url()).pathname, '/login');
+  assert.equal(new URL(oldBookmark.url()).searchParams.get('return_to'), '/security#ssh-check');
+  await anonymous.close();
+  await page.goto(origin + '/t/shared-owner/dashboard');
   mark('dashboard-uses-one-enrollment-dialog-without-legacy-inline-commands');
   await page.getByRole('button', { name: '添加第一台设备', exact: true }).waitFor();
   assert.equal(await page.getByText('三步把设备接进这个网络', { exact: true }).count(), 0);

@@ -53,7 +53,7 @@ const routes = [
 export const router = createRouter({
   history: createWebHistory(consoleBase() || "/"),
   routes,
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior: (to) => to.name === "security" && to.hash === "#ssh-check" ? { el: "#ssh-check", top: 80 } : { top: 0 },
 });
 
 router.beforeEach(async (to) => {

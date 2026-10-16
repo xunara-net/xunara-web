@@ -1,5 +1,13 @@
 import { consoleBase, consolePath } from "./console";
 
+const retiredConsolePages: Record<string, string> = {
+  "": "/dashboard", machines: "/devices", devices: "/devices", "exit-nodes": "/routes",
+  relays: "/relays", users: "/members", dns: "/dns", derp: "/relays", "auth-keys": "/api",
+  agents: "/api", "api-keys": "/api", shares: "/shares", policy: "/permissions",
+  security: "/security", passkeys: "/security", "ssh-check": "/security#ssh-check",
+  audit: "/audit", plan: "/plan", prefs: "/settings",
+};
+
 export function loginDestination(candidate: unknown): { path: string; backend: boolean } {
   if (typeof candidate !== "string" || !candidate.startsWith("/") || candidate.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(candidate)) {
     return { path: "/dashboard", backend: false };
@@ -8,9 +16,14 @@ export function loginDestination(candidate: unknown): { path: string; backend: b
   const base = consoleBase(pathname);
   const relative = base ? pathname.slice(base.length) || "/" : pathname;
   if (relative === "/login" || relative === "/login/") return { path: "/dashboard", backend: false };
+  // 登录书签也必须离开旧中心，且不能把旧查询中的凭据继续传给产品页面。
+  if (relative === "/console" || relative.startsWith("/console/")) {
+    const page = relative.replace(/^\/console\/?/, "").replace(/\/$/, "");
+    return { path: base + (Object.hasOwn(retiredConsolePages, page) ? retiredConsolePages[page]! : "/dashboard"), backend: false };
+  }
   // 官方客户端设备授权和 SSH 检查是后端 HTML，不是 SPA 页面。
   // 登录后必须完整导航，不能被 vue-router 的兜底路由吞成“页面不存在”。
-  const backend = ["/register/", "/ssh/check/", "/console/"].some((prefix) => relative.startsWith(prefix));
+  const backend = ["/register/", "/ssh/check/"].some((prefix) => relative.startsWith(prefix));
   return { path: candidate, backend };
 }
 

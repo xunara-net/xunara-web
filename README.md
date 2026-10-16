@@ -99,7 +99,7 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 | `/topology` | 拓扑与连接（在线/离线分组、路由标签） |
 | `/permissions` | ACL / Grants 规则编辑、策略图、权限矩阵、组、高级 HuJSON、测试原因与版本恢复 |
 | `/api` | API 密钥与预授权密钥 |
-| `/security` | 通行密钥、会话管理、安全概览与改密入口 |
+| `/security` | 通行密钥、会话管理、SSH 审批记录、安全概览与改密入口 |
 | `/plan` | 套餐、额度与能力 |
 | `/audit` | 审计日志 |
 | `/members`、`/settings` | 成员与角色、昵称/联系邮箱与密码自助管理 |
@@ -110,6 +110,12 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 应用密钥只在当前弹窗的一次请求中使用，提交后清空，不存浏览器、不回显。
 身份 v15 与严格配置契约需先升级服务端；配置边界以
 [服务端手册](https://github.com/xunara-net/xunara-server/blob/main/docs/authentication-settings.md)为准。
+
+旧 `/console/*` 内嵌用户中心已退役，不再作为独立 Web 的备用界面。
+旧书签登录后进入新页面；`/console/ssh-check` 对应 `/security#ssh-check`，直接展开并定位
+SSH 记录，支持状态筛选和游标翻页，不在列表中增加另一套批准入口。记录读取失败独立报错；
+“已批准 / 已取走结果”不代表连接成功，记录过期清理后不会补造历史。
+既有 `/register/*` 与 `/ssh/check/*` 浏览器授权继续完整导航；它们不是旧控制台。
 
 ## 网络控制台
 

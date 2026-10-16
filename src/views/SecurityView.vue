@@ -10,6 +10,7 @@ import StatCard from "../components/StatCard.vue";
 import AccountPasskeys from "../components/AccountPasskeys.vue";
 import AccountIdentities from "../components/AccountIdentities.vue";
 import AccountLoginHistory from "../components/AccountLoginHistory.vue";
+import SSHCheckHistory from "../components/SSHCheckHistory.vue";
 import { formatTime, relativeTime } from "../utils/format";
 import { authMethodLabel, sessionClientLabel, securityFindingText, severityLabel, splitAccountSessions } from "../utils/security";
 
@@ -142,6 +143,8 @@ async function revoke(target: AccountSession | "others" | "all") {
   <AccountLoginHistory :refresh-key="historyRefresh" />
   <AccountIdentities />
   <AccountPasskeys />
+
+  <SSHCheckHistory />
 
   <div class="card">
     <div class="card-head"><h2>网络安全概览</h2><button class="btn small" :disabled="securityLoading" @click="loadSecurity">刷新</button></div>
