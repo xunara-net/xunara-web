@@ -3,34 +3,34 @@ import { accountLoginDestination, accountLoginPath, canonicalLoginPath, legacyPr
 
 describe("登录回跳", () => {
   it("站内产品页面使用 SPA 导航", () => {
-    expect(loginDestination("/security?tab=sessions#current")).toEqual({ path: "/security?tab=sessions#current", backend: false });
-    expect(loginDestination("/register").backend).toBe(false);
+    expect(loginDestination("/security?tab=sessions#current")).toEqual({ path: "/security?tab=sessions#current" });
+    expect(loginDestination("/register").path).toBe("/register");
   });
 
-  it("设备授权和 SSH 检查仍使用完整浏览器导航", () => {
+  it("设备授权和 SSH 检查均由新版 SPA 渲染", () => {
     for (const path of ["/register/authorization-id", "/ssh/check/check-id"]) {
-      expect(loginDestination(path)).toEqual({ path, backend: true });
+      expect(loginDestination(path)).toEqual({ path });
     }
   });
 
   it("旧中心书签改为新页面，不恢复旧 HTML，也不复制旧 query", () => {
-    expect(loginDestination("/console/ssh-check?state=pending&token=discarded")).toEqual({ path: "/security#ssh-check", backend: false });
-    expect(loginDestination("/console/passkeys")).toEqual({ path: "/security", backend: false });
-    expect(loginDestination("/console/machines")).toEqual({ path: "/devices", backend: false });
-    expect(loginDestination("/console")).toEqual({ path: "/dashboard", backend: false });
-    expect(loginDestination("/console/unknown")).toEqual({ path: "/dashboard", backend: false });
-    expect(loginDestination("/console/constructor")).toEqual({ path: "/dashboard", backend: false });
+    expect(loginDestination("/console/ssh-check?state=pending&token=discarded")).toEqual({ path: "/security#ssh-check" });
+    expect(loginDestination("/console/passkeys")).toEqual({ path: "/security" });
+    expect(loginDestination("/console/machines")).toEqual({ path: "/devices" });
+    expect(loginDestination("/console")).toEqual({ path: "/dashboard" });
+    expect(loginDestination("/console/unknown")).toEqual({ path: "/dashboard" });
+    expect(loginDestination("/console/constructor")).toEqual({ path: "/dashboard" });
     expect(accountLoginDestination("/t/bob", "/t/alice/console/ssh-check")).toBe("/t/bob/security#ssh-check");
   });
 
   it("查询字符串不能伪装成后端路径", () => {
-    expect(loginDestination("/dashboard?next=/register/id").backend).toBe(false);
-    expect(loginDestination("/register-prefix/id").backend).toBe(false);
+    expect(loginDestination("/dashboard?next=/register/id").path).toBe("/dashboard?next=/register/id");
+    expect(loginDestination("/register-prefix/id").path).toBe("/register-prefix/id");
   });
 
   it("拒绝外部 URL、协议相对地址、反斜杠、控制字符和数组", () => {
     for (const path of [undefined, ["/security"], "https://attacker.test/", "//attacker.test/", "/\\attacker.test", "/security\n", "javascript:alert(1)"]) {
-      expect(loginDestination(path)).toEqual({ path: "/dashboard", backend: false });
+      expect(loginDestination(path)).toEqual({ path: "/dashboard" });
     }
   });
 });
@@ -56,9 +56,9 @@ describe("统一账户登录入口", () => {
     expect(accountLoginDestination("", undefined)).toBe("/dashboard");
     expect(accountLoginDestination("/t/bob", "//foreign.test")).toBe("/t/bob/dashboard");
   });
-  it("后端设备与 SSH 授权不能借旧回跳跳入另一网络", () => {
+  it("设备与 SSH 授权不能借旧回跳跳入另一网络", () => {
     expect(accountLoginDestination("/t/alice", "/t/alice/register/approval")).toBe("/t/alice/register/approval");
-    expect(loginDestination("/t/alice/register/approval").backend).toBe(true);
+    expect(loginDestination("/t/alice/register/approval").path).toBe("/t/alice/register/approval");
     expect(accountLoginDestination("/t/bob", "/t/alice/register/approval")).toBe("/t/bob/dashboard");
     expect(accountLoginDestination("/t/bob", "/t/alice/ssh/check/approval")).toBe("/t/bob/dashboard");
   });

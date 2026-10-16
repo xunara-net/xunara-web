@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:network": "node --test scripts/network-check-test.cjs",
     "test:shared-console": "node scripts/shared-console-browser-smoke.cjs",
-    "test:sharing": "node scripts/device-sharing-browser-smoke.cjs"
+    "test:sharing": "node scripts/device-sharing-browser-smoke.cjs",
+    "test:authorization": "node scripts/authorization-browser-smoke.cjs"
   },
   "dependencies": {
     "vue": "^3.5.13",

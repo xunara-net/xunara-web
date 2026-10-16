@@ -7,7 +7,6 @@ import { session } from "../store";
 import { getPasskey, passkeyAvailability, passkeyErrorMessage } from "../utils/passkey";
 import { accountLoginDestination, legacyProviderLoginURL, loginDestination, providerLoginURL } from "../utils/auth";
 import type { ProvidersPayload } from "../api/types";
-import { consolePath } from "../utils/console";
 
 const route = useRoute();
 const router = useRouter();
@@ -45,7 +44,7 @@ async function loadMethods() {
     const payload = await ep.getProviders();
     if (disposed) return;
     info.value = payload;
-    if (payload.setup_required) error.value = "服务尚未初始化，请先由管理员在服务端完成初始化。";
+    if (payload.setup_required) error.value = "服务尚未初始化，请由部署管理员完成首次设置。";
     else {
       // 旧第三方书签经过同一受限 API 入口，不能重新引入 /login 的后端/SPA 双实现。
       const legacyStart = legacyProviderLoginURL(payload.providers, route.query.provider, route.query.return_to);
@@ -113,10 +112,6 @@ async function afterLogin() {
     return;
   }
   const target = loginDestination(route.query.return_to);
-  if (target.backend) {
-    window.location.assign(consolePath(target.path));
-    return;
-  }
   await router.push(target.path);
 }
 </script>
@@ -175,6 +170,7 @@ async function afterLogin() {
       </template>
 
       <div class="auth-footer">
+        <router-link v-if="setupRequired" to="/setup">初始化管理员</router-link>
         <router-link v-if="info?.local_login" to="/reset-password">忘记密码</router-link>
         <router-link v-if="registration === 'invite'" to="/register">使用邀请码注册</router-link>
         <router-link v-else-if="registration === 'open'" to="/register">免费创建账户</router-link>

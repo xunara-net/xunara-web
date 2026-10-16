@@ -88,12 +88,12 @@ async function main() {
     if (daemon.exitCode !== null) throw new Error('isolated daemon exited');
     await sleep(100);
   }
-  const setup = await backend('/setup');
-  const csrf = /name="_csrf" value="([^"]+)"/.exec(setup.text)?.[1];
+  const setup = await backend('/api/v1/auth/setup');
+  const csrf = setup.json().csrf_token;
   assert.ok(csrf);
-  const initialized = await backend('/setup', 'POST', new URLSearchParams({ token: fs.readFileSync(path.join(state, 'portal/setup-token'), 'utf8').trim(),
-    _csrf: csrf, login: 'portal-owner', password, confirm: password }).toString(), { 'Content-Type': 'application/x-www-form-urlencoded' });
-  assert.equal(initialized.status, 302);
+  const initialized = await backend('/api/v1/auth/setup', 'POST', JSON.stringify({ token: fs.readFileSync(path.join(state, 'portal/setup-token'), 'utf8').trim(),
+    login: 'portal-owner', password, confirm: password }), { 'X-CSRF-Token': csrf });
+  assert.equal(initialized.status, 201);
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_BINARY || undefined, headless: true,
     args: ['--no-sandbox', '--no-proxy-server', '--host-resolver-rules=MAP control.example.test 127.0.0.1', '--ignore-certificate-errors-spki-list=' + spki] });
   const context = await browser.newContext(), page = await context.newPage();

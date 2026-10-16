@@ -8,6 +8,12 @@ import { accountLoginPath } from "./utils/auth";
 
 const routes = [
   { path: "/", redirect: "/dashboard" },
+  { path: "/setup", name: "setup", component: () => import("./views/SetupView.vue"), meta: { public: true, bare: true } },
+  { path: "/signup", redirect: "/register" },
+  { path: "/register/:authID", name: "device-authorization", component: () => import("./views/AuthorizationView.vue"), meta: { public: true, bare: true } },
+  { path: "/ssh/check/:authID", name: "ssh-authorization", component: () => import("./views/AuthorizationView.vue"), meta: { public: true, bare: true } },
+  { path: "/device/:flowID", name: "device-login", component: () => import("./views/DeviceLoginView.vue"), meta: { public: true, bare: true } },
+  { path: "/auth/error", name: "auth-error", component: () => import("./views/AuthErrorView.vue"), meta: { public: true, bare: true } },
   {
     path: "/login",
     name: "login",

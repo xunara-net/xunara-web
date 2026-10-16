@@ -8,30 +8,29 @@ const retiredConsolePages: Record<string, string> = {
   audit: "/audit", plan: "/plan", prefs: "/settings",
 };
 
-export function loginDestination(candidate: unknown): { path: string; backend: boolean } {
+export function loginDestination(candidate: unknown): { path: string } {
   if (typeof candidate !== "string" || !candidate.startsWith("/") || candidate.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(candidate)) {
-    return { path: "/dashboard", backend: false };
+    return { path: "/dashboard" };
   }
   const pathname = candidate.split(/[?#]/, 1)[0]!;
   const base = consoleBase(pathname);
   const relative = base ? pathname.slice(base.length) || "/" : pathname;
-  if (relative === "/login" || relative === "/login/") return { path: "/dashboard", backend: false };
+  if (relative === "/login" || relative === "/login/") return { path: "/dashboard" };
   // 登录书签也必须离开旧中心，且不能把旧查询中的凭据继续传给产品页面。
   if (relative === "/console" || relative.startsWith("/console/")) {
     const page = relative.replace(/^\/console\/?/, "").replace(/\/$/, "");
-    return { path: base + (Object.hasOwn(retiredConsolePages, page) ? retiredConsolePages[page]! : "/dashboard"), backend: false };
+    return { path: base + (Object.hasOwn(retiredConsolePages, page) ? retiredConsolePages[page]! : "/dashboard") };
   }
-  // 官方客户端设备授权和 SSH 检查是后端 HTML，不是 SPA 页面。
-  // 登录后必须完整导航，不能被 vue-router 的兜底路由吞成“页面不存在”。
-  const backend = ["/register/", "/ssh/check/"].some((prefix) => relative.startsWith(prefix));
-  return { path: candidate, backend };
+  return { path: candidate };
 }
 
 // 统一入口不沿用旧租户；授权页只允许回到本次验证过的网络。
 export function accountLoginDestination(workspace: string, candidate: unknown): string {
   const target = loginDestination(candidate);
   const previous = consoleBase(target.path);
-  if (previous && target.backend && previous !== workspace) return workspace + "/dashboard";
+  const relative = previous ? target.path.slice(previous.length) : target.path;
+  const authorization = ["/register/", "/ssh/check/", "/device/"].some((prefix) => relative.startsWith(prefix));
+  if (previous !== workspace && authorization && previous) return workspace + "/dashboard";
   return workspace + (previous ? target.path.slice(previous.length) || "/dashboard" : target.path);
 }
 

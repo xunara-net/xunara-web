@@ -63,8 +63,8 @@ async function main() {
   const log = fs.openSync(path.join(directory, 'daemon.log'), 'a', 0o600);
   daemon = spawn(process.env.SMOKE_XUNARAD, ['-listen', new URL(control).host, '-grpc-listen', '127.0.0.1:0', '-org-config', config, '-platform-state-dir', directory, '-plans', 'builtin', '-network-pool', '100.100.0.0/16', '-log-level', 'error'], { env: { ...process.env, XUNARA_PLATFORM_ADMIN_TOKEN: platformToken }, stdio: ['ignore', log, log] }); fs.closeSync(log);
   for (let attempt = 0; attempt < 100; attempt++) { try { if ((await backend('/health')).status === 200) break; } catch {} assert.equal(daemon.exitCode, null); await delay(100); }
-  const setup = await backend('/setup'); const csrf = /name="_csrf" value="([^"]+)"/.exec(setup.body)?.[1]; assert.ok(csrf);
-  assert.equal((await backend('/setup', 'POST', new URLSearchParams({ token: fs.readFileSync(path.join(directory, 'portal/setup-token'), 'utf8').trim(), _csrf: csrf, login: 'portal-owner', password, confirm: password }).toString(), { 'Content-Type': 'application/x-www-form-urlencoded' })).status, 302);
+  const setup = await backend('/api/v1/auth/setup'); const csrf = JSON.parse(setup.body).csrf_token; assert.ok(csrf);
+  assert.equal((await backend('/api/v1/auth/setup', 'POST', JSON.stringify({ token: fs.readFileSync(path.join(directory, 'portal/setup-token'), 'utf8').trim(), login: 'portal-owner', password, confirm: password }), { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf })).status, 201);
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_BINARY, headless: true, args: ['--no-sandbox', '--no-proxy-server', '--host-resolver-rules=MAP sharing.test 127.0.0.1', '--ignore-certificate-errors-spki-list=' + spki] });
   const sender = await signup('share-sender'), recipient = await signup('share-recipient'), outsider = await signup('share-outsider');
   mark('real-account-inboxes-start-empty');

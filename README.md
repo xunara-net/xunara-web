@@ -92,6 +92,9 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 | 路由 | 页面 |
 | --- | --- |
 | `/login`、`/register` | 登录 / 按部署策略邀请注册、开放注册或自助开通独立网络 |
+| `/setup` | 首次初始化：通过 JSON 提交服务端一次性证明，不从 URL 传令牌 |
+| `/register/:authID`、`/ssh/check/:authID` | 设备与 SSH 明确授权，包含待批、已处理、拒绝、过期与错误状态 |
+| `/device/:flowID`、`/auth/error` | 共享入口设备账户登录 / 固定原因码认证错误页 |
 | `/dashboard` | 控制台首页 |
 | `/devices`、`/devices/:id` | 设备列表 / 设备详情（IPv4 修改、路由审批、删除） |
 | `/network`、`/dns`、`/relays`、`/routes` | 网段管理、DNS、默认/公共/托管中继、路由与出口节点（独立功能页） |
@@ -115,7 +118,14 @@ Go 导出字段，设备与成员返回驼峰字段。`src/api/adapters.ts` 显�
 旧书签登录后进入新页面；`/console/ssh-check` 对应 `/security#ssh-check`，直接展开并定位
 SSH 记录，支持状态筛选和游标翻页，不在列表中增加另一套批准入口。记录读取失败独立报错；
 “已批准 / 已取走结果”不代表连接成功，记录过期清理后不会补造历史。
-既有 `/register/*` 与 `/ssh/check/*` 浏览器授权继续完整导航；它们不是旧控制台。
+既有 `/register/*`、`/ssh/check/*` 和 `/device/*` 浏览器授权路径保留，但全部由
+独立 Web 渲染，Core 不再包含旧表单、样式、脚本或页脚。初始化也在同源 Web 的
+`/setup` 完成。部署需同步升级 server 和 nginx，不能保留授权路径的旧 HTML 反代。
+
+隔离浏览器验收：先构建 Web 和本地服务端，设置 `SMOKE_XUNARAD`、可选
+`PLAYWRIGHT_MODULE` / `CHROMIUM_BINARY` 后运行 `npm run test:authorization`。
+夹具仅在临时目录创建测试数据库和专用测试证书，不连接生产或真实身份提供方；
+覆盖共享入口不会采用已登录入口管理员、设备批准/拒绝/过期、SSH 确认与手机布局。
 
 ## 网络控制台
 
