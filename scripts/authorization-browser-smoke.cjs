@@ -165,6 +165,23 @@ async function main() {
   await alice.getByRole('button', { name: '刷新状态', exact: true }).click();
   await alice.getByRole('button', { name: '确认接入', exact: true }).waitFor();
   assert.equal(await alice.getByRole('button', { name: '确认接入', exact: true }).isEnabled(), true);
+  mark('address-pool-conflict-explains-recovery-without-retrying-or-showing-success');
+  let exhaustedWrites = 0;
+  await alice.route('**' + uncertainEndpoint + '/approve', (route) => {
+    exhaustedWrites++;
+    route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"ADDRESS_POOL_EXHAUSTED: no usable device addresses remain"}' });
+  });
+  await alice.getByRole('button', { name: '确认接入', exact: true }).click();
+  await alice.getByRole('alert').waitFor(); await delay(300);
+  const exhaustionMessage = await alice.getByRole('alert').innerText();
+  assert.match(exhaustionMessage, /默认地址池.*平台管理员/);
+  assert.equal(exhaustionMessage.includes('no usable device addresses remain'), false);
+  assert.equal(exhaustedWrites, 1);
+  assert.equal(await alice.getByRole('button', { name: '确认接入', exact: true }).isDisabled(), true);
+  assert.equal(await alice.getByRole('heading', { name: '设备已获授权', exact: true }).count(), 0);
+  await alice.unroute('**' + uncertainEndpoint + '/approve');
+  await alice.getByRole('button', { name: '刷新状态', exact: true }).click();
+  await alice.getByRole('button', { name: '确认接入', exact: true }).waitFor();
   mark('read-only-browser-state-never-offers-approval-controls');
   const current = await browserJSON(alice, uncertainEndpoint);
   await alice.route('**' + uncertainEndpoint, (route) => route.fulfill({

@@ -55,6 +55,13 @@ describe("ApiError", () => {
 });
 
 describe("errorMessage", () => {
+  it("explains address exhaustion without confusing it with a plan quota or login failure", () => {
+    const message = errorMessage(new ApiError(409, "ADDRESS_POOL_EXHAUSTED: no usable device addresses remain"));
+    expect(message).toContain("地址池");
+    expect(message).toContain("平台管理员");
+    expect(message).not.toContain("升级套餐");
+    expect(message).not.toContain("no usable device addresses remain");
+  });
   it("explains duplicate signup without suggesting that a new network was created", () => {
     expect(errorMessage(new ApiError(409, "LOGIN_NAME_TAKEN: already registered"))).toContain("该用户名已注册");
     expect(errorMessage(new ApiError(400, "LOGIN_NAME_INVALID: invalid name"))).toContain("128");

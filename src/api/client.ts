@@ -149,8 +149,8 @@ export function apiDownload(path: string, options: RequestOptions, maxBytes: num
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     const code = err.errorCode;
-    // 新历史接口只给可执行的读取建议；保留既有错误的展示契约。
-    if (code === "LOGIN_HISTORY_FAILED" || code === "INVALID_LOGIN_HISTORY_PAGE" || code.startsWith("ACCOUNT_EXPORT_") || code === "INVALID_ACCOUNT_EXPORT") {
+    // 可修正的地址池冲突与历史接口只给操作建议；保留既有错误的展示契约。
+    if (code === "ADDRESS_POOL_EXHAUSTED" || code === "LOGIN_HISTORY_FAILED" || code === "INVALID_LOGIN_HISTORY_PAGE" || code.startsWith("ACCOUNT_EXPORT_") || code === "INVALID_ACCOUNT_EXPORT") {
       return `${humanizeCode(code)}（${code}）`;
     }
     return code ? `${humanizeCode(code)}（${err.message}）` : err.message;
@@ -207,6 +207,7 @@ const codeMessages: Record<string, string> = {
   ADDRESS_CHANGED: "网段或设备 IP 已被其他管理员修改，请关闭并刷新后重新操作",
   ADDRESS_IN_USE: "该 IP 或网段已被占用，旧网段仍可能被其他设备使用",
   ADDRESS_INVALID: "地址无效，请检查当前网段、系统保留段与地址格式",
+  ADDRESS_POOL_EXHAUSTED: "当前网络默认地址池没有可分配的 IP，设备尚未接入；请调整默认网段或联系平台管理员重新分配，修正后刷新再确认",
   DERP_MAP_INVALID: "中继地图格式无效，请检查地区编号、主机、端口和 TLS 校验",
   DERP_REGION_CONFLICT: "地区编号与默认或已接入中继冲突，请选择其它编号",
   DERP_IMPORT_FAILED: "暂时无法读取官方公共地图，原有中继配置未改变",
